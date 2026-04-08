@@ -1,0 +1,10 @@
+{
+  "name": "lime",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev:server": "bun run --filter server-core dev",
+    "dev:client": "bun run --filter client-web dev",
+    "dev": "bun run dev:server & bun run dev:client"
+  }
+}
