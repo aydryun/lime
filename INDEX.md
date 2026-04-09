@@ -1,101 +1,108 @@
-# 📚 Project Index & Documentation Guide
+# 📚 Index du Projet & Guide de Documentation
 
-Welcome to the completely migrated chat application! This guide helps you navigate all the resources.
+Bienvenue dans l'application de chat entièrement migrée ! Ce guide vous aide à naviguer dans toutes les ressources.
 
-## 🚀 Start Here
+## 🚀 Commencer Ici
 
-**New to the project?** Start with these files in order:
+**Nouveau sur le projet ?** Commencez par ces fichiers dans l'ordre :
 
-1. **GETTING_STARTED.md** ← START HERE
-   - Copy-paste commands to run the project
-   - Quick troubleshooting
+1. **GETTING_STARTED.md** ← COMMENCEZ ICI
+   - Commandes à copier-coller pour lancer le projet
+   - Dépannage rapide
 
 2. **QUICKSTART.md**
-   - 5-minute setup guide
-   - Architecture overview
-   - Testing instructions
+   - Guide de configuration en 5 minutes
+   - Aperçu de l'architecture
+   - Instructions de test
 
 3. **MIGRATION.md**
-   - Detailed architecture explanation
-   - Database schema
-   - WebSocket protocol
-   - Deployment options
-   - Future enhancements
+   - Explication détaillée de l'architecture
+   - Schéma de la base de données
+   - Protocole WebSocket
+   - Options de déploiement
+   - Améliorations futures
 
-## 📖 Documentation Structure
+## 📖 Structure de la Documentation
 
-### Quick Reference
-- **GETTING_STARTED.md** - Copy-paste commands (most important!)
-- **QUICKSTART.md** - 5-minute setup
-- **README_NEW.md** - Project overview
+### Référence Rapide
 
-### Detailed Guides
-- **MIGRATION.md** - Complete architecture (400+ lines)
-- **MIGRATION_SUMMARY.md** - What changed (300+ lines)
-- **COMPLETE_MIGRATION.md** - Comprehensive reference
+- **GETTING_STARTED.md** - Commandes à copier-coller (le plus important !)
+- **QUICKSTART.md** - Configuration en 5 minutes
+- **README_NEW.md** - Aperçu du projet
 
-### Implementation
-- **chat-backend/src/index.ts** - Express server (160 lines)
-- **chat-backend/src/database.ts** - PostgreSQL queries (47 lines)
-- **chat-backend/src/redis.ts** - Redis pub/sub (35 lines)
-- **chat-client/src/client.ts** - WebSocket client (80 lines)
+### Guides Détaillés
 
-## 📁 File Structure
+- **MIGRATION.md** - Architecture complète (plus de 400 lignes)
+- **MIGRATION_SUMMARY.md** - Ce qui a changé (plus de 300 lignes)
+- **COMPLETE_MIGRATION.md** - Référence complète
+
+### Implémentation
+
+- **chat-backend/src/index.ts** - Serveur Express (160 lignes)
+- **chat-backend/src/database.ts** - Requêtes PostgreSQL (47 lignes)
+- **chat-backend/src/redis.ts** - Pub/sub Redis (35 lignes)
+- **chat-client/src/client.ts** - Client WebSocket (80 lignes)
+
+## 📁 Structure des Fichiers
 
 ```
 lime/
-├── GETTING_STARTED.md           ← START HERE (copy-paste commands)
-├── QUICKSTART.md                ← 5-minute setup guide
-├── MIGRATION.md                 ← Architecture deep dive
-├── MIGRATION_SUMMARY.md         ← What changed
-├── README_NEW.md                ← Project overview
-├── COMPLETE_MIGRATION.md        ← Comprehensive reference
-├── run.ts                       ← Orchestration script
+├── MIGRATION_SUMMARY.md         ← Ce qui a changé
+├── README_NEW.md                ← Aperçu du projet
+├── COMPLETE_MIGRATION.md        ← Référence complète
+├── run.ts                       ← Script d'orchestration
 │
 ├── chat-backend/
 │   ├── src/
-│   │   ├── index.ts            ← Express server (START HERE FOR CODE)
-│   │   ├── database.ts         ← PostgreSQL layer
-│   │   └── redis.ts            ← Redis pub/sub
-│   ├── package.json            ← Bun scripts (dev, build, start)
-│   ├── tsconfig.json           ← TypeScript config
-│   ├── .env.example            ← Configuration template
-│   └── .gitignore              ← Git ignores
+│   │   ├── index.ts            ← Serveur Express (COMMENCEZ LE CODE ICI)
+│   │   ├── database.ts         ← Couche PostgreSQL
+│   │   └── redis.ts            ← Pub/sub Redis
+│   ├── package.json            ← Scripts Bun (dev, build, start)
+│   ├── tsconfig.json           ← Configuration TypeScript
+│   ├── .env.example            ← Modèle de configuration
+│   └── .gitignore              ← Fichiers ignorés par Git
 │
 ├── chat-client/
-│   ├── index.ts                ← Bun HTTP server
+│   ├── index.ts                ← Serveur HTTP Bun
 │   ├── src/
-│   │   └── client.ts           ← WebSocket client
+│   │   └── client.ts           ← Client WebSocket
 │   ├── package.json
 │   └── tsconfig.json
 │
-└── [other existing files]
+└── [autres fichiers]
 ```
 
-## 🎯 By Task
+## 🎯 Par Tâche
 
-### "I want to run the app right now"
-→ Read **GETTING_STARTED.md**
+### "Je veux lancer l'application tout de suite"
 
-### "I want a quick overview"
-→ Read **QUICKSTART.md**
+→ Lisez **GETTING_STARTED.md**
 
-### "I want to understand the architecture"
-→ Read **MIGRATION.md**
+### "Je veux un aperçu rapide"
 
-### "I want to see what changed from SpacetimeDB"
-→ Read **MIGRATION_SUMMARY.md**
+→ Lisez **QUICKSTART.md**
 
-### "I want to deploy to production"
-→ Read **COMPLETE_MIGRATION.md** section "Deployment Options"
+### "Je veux comprendre l'architecture"
 
-### "I want to add features"
-→ Read **MIGRATION.md** section "Future Enhancements", then edit `chat-backend/src/database.ts`
+→ Lisez **MIGRATION.md**
 
-### "I want to understand the code"
-→ Start with `chat-backend/src/index.ts` (well-commented)
+### "Je veux voir ce qui a changé depuis SpacetimeDB"
 
-## 💻 Three Commands to Run
+→ Lisez **MIGRATION_SUMMARY.md**
+
+### "Je veux déployer en production"
+
+→ Lisez **COMPLETE_MIGRATION.md** section "Options de déploiement"
+
+### "Je veux ajouter des fonctionnalités"
+
+→ Lisez **MIGRATION.md** section "Améliorations futures", puis modifiez `chat-backend/src/database.ts`
+
+### "Je veux comprendre le code"
+
+→ Commencez par `chat-backend/src/index.ts` (bien commenté)
+
+## 💻 Trois Commandes pour Lancer
 
 ```bash
 # Terminal 1
@@ -104,121 +111,127 @@ cd chat-backend && bun install && bun run dev
 # Terminal 2
 cd chat-client && bun install && bun run index.ts
 
-# Browser
+# Navigateur
 http://localhost:8080
 ```
 
-(Assuming PostgreSQL and Redis are running via Docker)
+(En supposant que PostgreSQL et Redis fonctionnent via Docker)
 
-## 📊 Technology Stack
+## 📊 Pile Technologique
 
-**Frontend:**
-- Bun (runtime)
+**Frontend :**
+
+- Bun (environnement d'exécution)
 - TypeScript
-- Native WebSocket API
+- API WebSocket native
 - HTML/CSS
 
-**Backend:**
-- Bun (runtime)
-- Express.js (server)
+**Backend :**
+
+- Bun (environnement d'exécution)
+- Express.js (serveur)
 - express-ws (WebSocket)
-- PostgreSQL (persistence)
-- Redis (real-time pub/sub)
+- PostgreSQL (persistance)
+- Redis (pub/sub en temps réel)
 - TypeScript
 
-## 🔑 Key Features
+## 🔑 Fonctionnalités Clés
 
-✅ Real-time messaging (WebSocket + Redis)
-✅ Persistent storage (PostgreSQL)
-✅ REST API endpoints
+✅ Messagerie en temps réel (WebSocket + Redis)
+✅ Stockage persistant (PostgreSQL)
+✅ Points d'accès API REST
 ✅ Type-safe TypeScript
-✅ Production-ready code
-✅ Comprehensive documentation
-✅ Zero SpacetimeDB lock-in
-✅ 6x faster setup with Bun
+✅ Code prêt pour la production
+✅ Documentation complète
+✅ Aucun enfermement propriétaire SpacetimeDB
+✅ Configuration 6x plus rapide avec Bun
 
-## 📈 Performance
+## 📈 Performances
 
-| Metric | Value |
+| Métrique | Valeur |
 |--------|-------|
-| Install time | ~5s (vs npm: 30s) |
-| Startup time | ~1s (vs npm: 5s) |
-| TypeScript compilation | Native (no separate step) |
-| Development experience | Excellent (watch mode) |
+| Temps d'installation | ~5s (vs npm : 30s) |
+| Temps de démarrage | ~1s (vs npm : 5s) |
+| Compilation TypeScript | Native (pas d'étape séparée) |
+| Expérience de développement | Excellente (mode watch) |
 
-## 🛠️ Commands Reference
+## 🛠️ Référence des Commandes
 
 ### Backend
 
 ```bash
-# Development (with auto-reload)
+# Développement (avec rechargement automatique)
 cd chat-backend
 bun run dev
 
-# Build
+# Construction
 bun run build
 
 # Production
 bun run start
 
-# Install
+# Installation
 bun install
 ```
 
 ### Frontend
 
 ```bash
-# Development
+# Développement
 cd chat-client
 bun run index.ts
 
-# Install
+# Installation
 bun install
 ```
 
-## 🚀 Deployment
+## 🚀 Déploiement
 
-The application can be deployed to:
-- Heroku (with Buildpack)
+L'application peut être déployée sur :
+
+- Heroku (avec Buildpack)
 - DigitalOcean (App Platform)
-- Railway.app (supports Bun)
-- Render (supports Bun)
+- Railway.app (supporte Bun)
+- Render (supporte Bun)
 - AWS Lambda
-- Any Linux server with Bun
+- N'importe quel serveur Linux avec Bun
 
-See **COMPLETE_MIGRATION.md** for detailed deployment options.
+Voir **COMPLETE_MIGRATION.md** pour les options de déploiement détaillées.
 
-## 🧪 Testing
+## 🧪 Tests
 
-### Multi-Client Test
-1. Open http://localhost:8080 in two windows
-2. Enter different names
-3. Send messages
-4. See real-time updates
+### Test Multi-Clients
 
-### Persistence Test
-1. Send messages
-2. Refresh browser
-3. Messages persist (from PostgreSQL)
+1. Ouvrez <http://localhost:8080> dans deux fenêtres
+2. Entrez des noms différents
+3. Envoyez des messages
+4. Voyez les mises à jour en temps réel
 
-### REST API Test
+### Test de Persistance
+
+1. Envoyez des messages
+2. Rafraîchissez le navigateur
+3. Les messages persistent (depuis PostgreSQL)
+
+### Test API REST
+
 ```bash
 curl http://localhost:3000/api/messages
 curl -X POST http://localhost:3000/api/messages \
   -H "Content-Type: application/json" \
-  -d '{"sender": "Test", "text": "Hello"}'
+  -d '{"sender": "Test", "text": "Bonjour"}'
 ```
 
-## 🔒 Security
+## 🔒 Sécurité
 
-- HTML escaping prevents XSS attacks
-- Input validation on messages
-- Environment-based configuration
-- Future: Add authentication, rate limiting
+- L'échappement HTML prévient les attaques XSS
+- Validation des entrées sur les messages
+- Configuration basée sur l'environnement
+- Futur : Ajouter l'authentification, la limitation de débit
 
 ## ⚙️ Configuration
 
-Edit `chat-backend/.env`:
+Modifiez `chat-backend/.env` :
 
 ```bash
 DB_USER=postgres
@@ -231,12 +244,13 @@ REDIS_PORT=6379
 PORT=3000
 ```
 
-## 🐛 Troubleshooting
+## 🐛 Dépannage
 
-**Port already in use:**
-Change PORT in .env
+**Port déjà utilisé :**
+Changez PORT dans .env
 
-**PostgreSQL connection error:**
+**Erreur de connexion PostgreSQL :**
+
 ```bash
 docker run -d -p 5432:5432 \
   -e POSTGRES_PASSWORD=postgres \
@@ -244,79 +258,80 @@ docker run -d -p 5432:5432 \
   postgres:latest
 ```
 
-**Redis connection error:**
+**Erreur de connexion Redis :**
+
 ```bash
 docker run -d -p 6379:6379 redis:latest
 ```
 
-See **MIGRATION.md** for more troubleshooting.
+Voir **MIGRATION.md** pour plus de dépannage.
 
-## 📞 Need Help?
+## 📞 Besoin d'Aide ?
 
-1. Check **GETTING_STARTED.md** troubleshooting
-2. Check **MIGRATION.md** troubleshooting section
-3. Review inline code comments
-4. Check WebSocket protocol in **MIGRATION.md**
+1. Vérifiez le dépannage de **GETTING_STARTED.md**
+2. Vérifiez la section de dépannage de **MIGRATION.md**
+3. Passez en revue les commentaires dans le code
+4. Vérifiez le protocole WebSocket dans **MIGRATION.md**
 
-## 🎓 Learning Resources
+## 🎓 Ressources d'Apprentissage
 
-- **MIGRATION.md** - Learn about the architecture
-- **chat-backend/src/index.ts** - Study the implementation
-- **chat-backend/src/database.ts** - Learn PostgreSQL integration
-- **chat-client/src/client.ts** - Learn WebSocket client
+- **MIGRATION.md** - Découvrez l'architecture
+- **chat-backend/src/index.ts** - Étudiez l'implémentation
+- **chat-backend/src/database.ts** - Apprenez l'intégration PostgreSQL
+- **chat-client/src/client.ts** - Apprenez le client WebSocket
 
-## 📝 File Descriptions
+## 📝 Descriptions des Fichiers
 
-### Documentation (What to Read)
+### Documentation (Ce qu'il faut lire)
 
-| File | Purpose | When to Read |
+| Fichier | Objectif | Quand Lire |
 |------|---------|--------------|
-| GETTING_STARTED.md | Copy-paste commands | First (NOW!) |
-| QUICKSTART.md | 5-minute setup | Second |
-| MIGRATION.md | Architecture details | Third (detailed dive) |
-| MIGRATION_SUMMARY.md | What changed | Reference |
-| README_NEW.md | Project overview | Overview |
-| COMPLETE_MIGRATION.md | Comprehensive guide | Deployment/Reference |
+| GETTING_STARTED.md | Commandes à copier-coller | En premier (MAINTENANT !) |
+| QUICKSTART.md | Configuration en 5 minutes | En deuxième |
+| MIGRATION.md | Détails de l'architecture | En troisième (plongée détaillée) |
+| MIGRATION_SUMMARY.md | Ce qui a changé | Référence |
+| README_NEW.md | Aperçu du projet | Aperçu |
+| COMPLETE_MIGRATION.md | Guide complet | Déploiement/Référence |
 
-### Code (What to Study)
+### Code (Ce qu'il faut étudier)
 
-| File | Lines | Purpose |
+| Fichier | Lignes | Objectif |
 |------|-------|---------|
-| chat-backend/src/index.ts | 160 | Express + WebSocket server |
-| chat-backend/src/database.ts | 47 | PostgreSQL queries |
-| chat-backend/src/redis.ts | 35 | Redis pub/sub |
-| chat-client/src/client.ts | 80 | WebSocket client |
+| chat-backend/src/index.ts | 160 | Serveur Express + WebSocket |
+| chat-backend/src/database.ts | 47 | Requêtes PostgreSQL |
+| chat-backend/src/redis.ts | 35 | Pub/sub Redis |
+| chat-client/src/client.ts | 80 | Client WebSocket |
 
-### Configuration (What to Configure)
+### Configuration (Ce qu'il faut configurer)
 
-| File | Purpose |
+| Fichier | Objectif |
 |------|---------|
-| chat-backend/.env | Database and Redis settings |
-| chat-backend/package.json | Dependencies and Bun scripts |
-| chat-backend/tsconfig.json | TypeScript configuration |
-| chat-client/package.json | Frontend configuration |
+| chat-backend/.env | Paramètres de base de données et Redis |
+| chat-backend/package.json | Dépendances et scripts Bun |
+| chat-backend/tsconfig.json | Configuration TypeScript |
+| chat-client/package.json | Configuration Frontend |
 
-## ✅ Checklist: You're Ready When
+## ✅ Liste de contrôle : Vous êtes prêt quand
 
-- [ ] Bun is installed
-- [ ] PostgreSQL is running
-- [ ] Redis is running
-- [ ] Backend starts with `bun run dev`
-- [ ] Frontend starts with `bun run index.ts`
-- [ ] Browser opens to http://localhost:8080
-- [ ] You can send messages
-- [ ] Messages persist on refresh
+- [ ] Bun est installé
+- [ ] PostgreSQL est en cours d'exécution
+- [ ] Redis est en cours d'exécution
+- [ ] Le backend démarre avec `bun run dev`
+- [ ] Le frontend démarre avec `bun run index.ts`
+- [ ] Le navigateur s'ouvre sur <http://localhost:8080>
+- [ ] Vous pouvez envoyer des messages
+- [ ] Les messages persistent lors de l'actualisation
 
-## 🎉 You're All Set!
+## 🎉 Tout est prêt
 
-Everything is ready to go. Start with **GETTING_STARTED.md** and run those three commands.
+Tout est prêt. Commencez par **GETTING_STARTED.md** et exécutez ces trois commandes.
 
-Questions? Check the troubleshooting section in **MIGRATION.md**.
+Des questions ? Vérifiez la section de dépannage dans **MIGRATION.md**.
 
-Happy coding! 🚀
+Bon codage ! 🚀
 
 ---
 
-**Last Updated:** April 9, 2026  
-**Project Status:** Production Ready ✅  
-**Stack:** Express + PostgreSQL + Redis + Bun  
+**Dernière Mise à Jour :** 9 Avril 2026  
+**Statut du Projet :** Prêt pour la Production ✅  
+**Stack :** Express + PostgreSQL + Redis + Bun  

@@ -1,61 +1,53 @@
-# Quick Start Guide
+# Guide de Démarrage Rapide
 
-## Prerequisites
+## Prérequis
 
-- Bun 1.0+ (JavaScript runtime - install from https://bun.sh)
+- Bun 1.0+ (environnement d'exécution JavaScript - installez depuis <https://bun.sh>)
 - PostgreSQL 12+
 - Redis 6+
 
-## Setup in 5 Minutes
+## Configuration en 5 Minutes
 
-### 1. Start PostgreSQL and Redis (via Docker)
+### 1. Démarrer PostgreSQL et Redis (via Docker via Docker compose)
 
 ```bash
-# PostgreSQL
-docker run -d --name postgres-chat \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=chat_db \
-  -p 5432:5432 \
-  postgres:latest
-
-# Redis
-docker run -d --name redis-chat \
-  -p 6379:6379 \
-  redis:latest
+# Lancer 
+docker compose up
 ```
 
-### 2. Install Backend Dependencies
+### 2. Installer les Dépendances du Backend
 
 ```bash
 cd chat-backend
 bun install
 ```
 
-### 3. Configure Environment (Optional)
+### 3. Configurer l'Environnement (Optionnel)
 
-The defaults should work if you're running PostgreSQL and Redis locally:
+Les valeurs par défaut devraient fonctionner si PostgreSQL et Redis sont exécutés localement :
 
 ```bash
-# Check chat-backend/.env defaults - they're already set
+# Vérifiez les valeurs par défaut de chat-backend/.env - elles sont déjà configurées
 cat chat-backend/.env.example
 ```
 
-### 4. Start Backend Server
+### 4. Démarrer le Serveur Backend
 
 ```bash
-# From chat-backend/
+# Depuis chat-backend/
 bun run dev
 ```
 
-Expected output:
+Sortie attendue :
+
 ```
-✓ Database schema initialized
-✓ Connected to Redis
-🚀 Server running on http://localhost:3000
-📡 WebSocket available at ws://localhost:3000/ws
+✓ Schéma de la base de données initialisé
+✓ Connecté à Redis
+🚀 Serveur en cours d'exécution sur http://localhost:3000
+📡 WebSocket disponible sur ws://localhost:3000/ws
 ```
 
-### 5. Start Frontend (in new terminal)
+### 5. Démarrer le Frontend (dans un nouveau terminal)
 
 ```bash
 cd chat-client
@@ -63,114 +55,118 @@ bun install
 bun run index.ts
 ```
 
-Expected output:
+Sortie attendue :
+
 ```
 🌐 Ouvre ton navigateur sur http://localhost:8080
 ```
 
-### 6. Open Browser
+### 6. Ouvrir le Navigateur
 
-Visit `http://localhost:8080` in your browser
+Visitez `http://localhost:8080` dans votre navigateur
 
-## Architecture at a Glance
+## Architecture en un Coup d'Œil
 
 ```
 ┌─────────────────────────────────────────────────┐
-│           Browser Client                        │
+│           Client Navigateur                     │
 │  (JavaScript, WebSocket)                        │
 └──────────────────┬──────────────────────────────┘
                    │
                    │ WebSocket
                    ↓
 ┌──────────────────────────────────────┐
-│   Express Server (Port 3000)         │
-│  - HTTP API (/api/messages)          │
-│  - WebSocket Handler (/ws)           │
+│   Serveur Express (Port 3000)        │
+│  - API HTTP (/api/messages)          │
+│  - Gestionnaire WebSocket (/ws)      │
 └───┬──────────────────────────┬───────┘
     │                          │
     │                          │
     ↓                          ↓
 ┌────────────────┐      ┌─────────────┐
 │  PostgreSQL    │      │   Redis     │
-│  (Persistent)  │      │ (Real-time) │
+│  (Persistant)  │      │ (Temps réel)│
 └────────────────┘      └─────────────┘
 ```
 
-## Testing
+## Tests
 
-### Test 1: Multiple Clients
-1. Open `http://localhost:8080` in two browser windows
-2. Enter different names (e.g., "Alice", "Bob")
-3. Send messages from each window
-4. Verify messages appear in real-time on both
+### Test 1 : Clients Multiples
 
-### Test 2: Message Persistence
-1. Send several messages
-2. Refresh your browser
-3. All messages should reappear (they're in PostgreSQL)
+1. Ouvrez `http://localhost:8080` dans deux fenêtres de navigateur
+2. Entrez des noms différents (par exemple, "Alice", "Bob")
+3. Envoyez des messages depuis chaque fenêtre
+4. Vérifiez que les messages apparaissent en temps réel sur les deux
 
-### Test 3: REST API
+### Test 2 : Persistance des Messages
+
+1. Envoyez plusieurs messages
+2. Rafraîchissez votre navigateur
+3. Tous les messages devraient réapparaître (ils sont dans PostgreSQL)
+
+### Test 3 : API REST
+
 ```bash
-# Get all messages
+# Obtenir tous les messages
 curl http://localhost:3000/api/messages
 
-# Send a message
+# Envoyer un message
 curl -X POST http://localhost:3000/api/messages \
   -H "Content-Type: application/json" \
-  -d '{"sender": "TestUser", "text": "Hello from curl!"}'
+  -d '{"sender": "UtilisateurTest", "text": "Bonjour depuis curl !"}'
 ```
 
-## Common Issues
+## Problèmes Courants
 
-| Problem | Solution |
-|---------|----------|
-| "Cannot connect to PostgreSQL" | Run PostgreSQL container or start system PostgreSQL |
-| "Cannot connect to Redis" | Run Redis container or start system Redis |
-| "Port 3000 already in use" | Change `PORT=3001` in `.env` and reconnect client to `ws://localhost:3001/ws` |
-| "Port 8080 already in use" | Change `serve()` port in `chat-client/index.ts` |
-| Messages not saving | Check PostgreSQL is running: `docker ps` |
-| Messages not real-time | Check Redis is running: `redis-cli ping` |
+| Problème | Solution |
+|----------|----------|
+| "Impossible de se connecter à PostgreSQL" | Exécutez le conteneur PostgreSQL ou démarrez PostgreSQL système |
+| "Impossible de se connecter à Redis" | Exécutez le conteneur Redis ou démarrez Redis système |
+| "Port 3000 déjà utilisé" | Changez `PORT=3001` dans `.env` et reconnectez le client à `ws://localhost:3001/ws` |
+| "Port 8080 déjà utilisé" | Changez le port `serve()` dans `chat-client/index.ts` |
+| Les messages ne s'enregistrent pas | Vérifiez que PostgreSQL est en cours d'exécution : `docker ps` |
+| Les messages ne sont pas en temps réel | Vérifiez que Redis est en cours d'exécution : `redis-cli ping` |
 
-## Next Steps
+## Prochaines Étapes
 
-- Read `MIGRATION.md` for detailed architecture documentation
-- Check `chat-backend/src/` for server implementation
-- Modify `chat-client/src/client.ts` for client customization
-- Add authentication, channels, or other features to `src/database.ts`
+- Lisez `MIGRATION.md` pour la documentation détaillée de l'architecture
+- Consultez `chat-backend/src/` pour l'implémentation du serveur
+- Modifiez `chat-client/src/client.ts` pour personnaliser le client
+- Ajoutez l'authentification, les salons, ou d'autres fonctionnalités dans `src/database.ts`
 
-## Cleanup
+## Nettoyage
 
-To stop all services:
+Pour arrêter tous les services :
 
 ```bash
-# Stop Bun servers
-Ctrl+C (in both terminals)
+# Arrêter les serveurs Bun
+Ctrl+C (dans les deux terminaux)
 
-# Stop Docker containers
+# Arrêter les conteneurs Docker
 docker stop postgres-chat redis-chat
 docker rm postgres-chat redis-chat
 ```
 
-## File Structure
+## Structure des Fichiers
 
 ```
 .
 ├── chat-backend/
 │   ├── src/
-│   │   ├── index.ts       # Main server
+│   │   ├── index.ts       # Serveur principal
 │   │   ├── database.ts    # PostgreSQL
-│   │   └── redis.ts       # Redis pub/sub
+│   │   └── redis.ts       # Pub/sub Redis
 │   ├── package.json
 │   ├── tsconfig.json
-│   └── .env.example       # Environment template
+│   └── .env.example       # Modèle d'environnement
 ├── chat-client/
-│   ├── index.ts           # Bun server
+│   ├── index.ts           # Serveur Bun
 │   ├── src/
-│   │   └── client.ts      # WebSocket client
+│   │   └── client.ts      # Client WebSocket
 │   ├── package.json
 │   └── tsconfig.json
-├── MIGRATION.md           # Detailed migration guide
-└── QUICKSTART.md          # This file
+├── MIGRATION.md           # Guide de migration détaillé
+└── QUICKSTART.md          # Ce fichier
 ```
 
-Happy chatting! 🎉
+Bonne discussion ! 🎉
