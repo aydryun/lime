@@ -1,0 +1,30 @@
+services:
+
+  postgres:
+    image: postgres
+    container_name: chat_db
+    ports:
+      - "5432:5432"
+    restart: always
+    # set shared memory limit when using docker compose
+    shm_size: 128mb
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chat_db
+  redis:
+    image: redis:latest
+    container_name: chat_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8081:8080
+
+volumes:
+  postgres_data:
+  redis_data:
