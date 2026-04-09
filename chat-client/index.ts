@@ -6,19 +6,184 @@ const html = `
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Chat Minimaliste SpacetimeDB</title>
+    <title>Chat Minimaliste</title>
     <style>
-        body { font-family: sans-serif; background: #222; color: #fff; padding: 20px; }
-        #chat { width: 100%; height: 400px; background: #333; overflow-y: auto; padding: 10px; margin-bottom: 10px; }
-        input { padding: 10px; width: calc(100% - 100px); }
-        button { padding: 10px; width: 80px; cursor: pointer; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: sans-serif;
+            background-color: #ffffff;
+            color: #666;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .app {
+            width: 100%;
+            max-width: 1000px;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #888;
+        }
+        .main-layout {
+            display: flex;
+            flex: 1;
+            gap: 20px;
+            overflow: hidden;
+        }
+        .sidebar {
+            width: 80px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .sidebar-items {
+            background-color: #f0f0f0;
+            border-radius: 12px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex: 1;
+            margin-bottom: 20px;
+        }
+        .sidebar-item {
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 6px;
+        }
+        .sidebar-bottom {
+            background-color: #b0b0b0;
+            color: white;
+            border-radius: 12px;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow: hidden;
+        }
+        .chat-messages {
+            flex: 1;
+            background-color: #f5f5f5;
+            border-radius: 12px;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .chat-input-area {
+            display: flex;
+            gap: 10px;
+            height: 60px;
+        }
+        .btn-icon {
+            width: 60px;
+            border-radius: 12px;
+            border: none;
+            background-color: #f5f5f5;
+            color: #ccc;
+            font-size: 32px;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #input {
+            flex: 1;
+            border-radius: 12px;
+            border: none;
+            background-color: #f5f5f5;
+            padding: 0 20px;
+            font-size: 16px;
+            outline: none;
+            color: #666;
+        }
+        .btn-send {
+            width: 60px;
+            border-radius: 12px;
+            border: none;
+            background-color: #b0b0b0;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        /* Styles pour les messages ajoutés par client.ts */
+        .message-row {
+            display: flex;
+            gap: 15px;
+        }
+        .avatar {
+            width: 40px;
+            height: 40px;
+            background-color: #e0e0e0;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        .message-content {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background-color: transparent;
+            color: #555;
+            max-width: 80%;
+        }
+        .message-text {
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            padding: 10px 15px;
+            margin-top: 5px;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
-    <h1>Chat en Direct 🚀</h1>
-    <div id="chat"></div> <!-- Les messages vont apparaître ici -->
-    <input type="text" id="input" placeholder="Écris ton message...">
-    <button id="btn">Envoyer</button>
+    <div class="app">
+        <div class="header">Conversation</div>
+        <div class="main-layout">
+            <div class="sidebar">
+                <div class="sidebar-items">
+                    <div class="sidebar-item"></div>
+                    <div class="sidebar-item"></div>
+                    <div class="sidebar-item"></div>
+                    <div class="sidebar-item"></div>
+                    <div class="sidebar-item"></div>
+                    <div class="sidebar-item"></div>
+                    <div class="sidebar-item"></div>
+                    <div class="sidebar-item"></div>
+                </div>
+                <div class="sidebar-bottom">G | P</div>
+            </div>
+            <div class="chat-container">
+                <div class="chat-messages" id="chat"></div>
+                <div class="chat-input-area">
+                    <button class="btn-icon" id="btn-plus">+</button>
+                    <input type="text" id="input" placeholder="">
+                    <button class="btn-send" id="btn">S</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <script type="module" src="/app.js"></script>
 </body>
 </html>
