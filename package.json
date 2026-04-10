@@ -3,7 +3,15 @@
   "private": true,
   "scripts": {
     "dev:chat": "cd chat-backend && bun run dev",
-    "dev": "bun run dev:chat"
+    "dev": "bun run dev:chat",
+    "seed": "cd chat-backend && bun run seed",
+    "lint": "cd chat-backend && bun run lint",
+    "check": "cd chat-backend && bun run check",
+    "format": "cd chat-backend && bun run format",
+    "migrate:up": "cd chat-backend && bun run migrate:up",
+    "migrate:down": "cd chat-backend && bun run migrate:down",
+    "migrate:create": "cd chat-backend && bun run migrate:create",
+    "db:reset": "docker exec chat_db psql -U postgres -c 'DROP DATABASE chat_db;' && docker exec chat_db psql -U postgres -c 'CREATE DATABASE chat_db;' && bun run migrate:up && bun run seed"
   },
   "dependencies": {
     "cors": "^2.8.6",
@@ -12,5 +20,8 @@
     "express-ws": "^5.0.2",
     "pg": "^8.20.0",
     "redis": "^5.11.0"
+  },
+  "devDependencies": {
+    "node-pg-migrate": "^8.0.4"
   }
 }

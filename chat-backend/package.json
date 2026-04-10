@@ -11,12 +11,17 @@
     "check": "bunx --bun @biomejs/biome check --write",
     "format": "bunx --bun @biomejs/biome format",
     "lint": "bunx --bun @biomejs/biome lint",
-    "seed": "bun seed.ts"
+    "seed": "bun seed.ts",
+    "migrate:up": "node-pg-migrate --envPath ../.env up",
+    "migrate:down": "node-pg-migrate --envPath ../.env down",
+    "migrate:create": "node-pg-migrate create"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "config": "^4.4.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
+    "dotenv-expand": "^12.0.3",
     "express": "^4.18.2",
     "express-ws": "^5.0.2",
     "jsonwebtoken": "^9.0.3",
@@ -33,6 +38,7 @@
     "@types/node": "^20.10.6",
     "@types/pg": "^8.20.0",
     "@types/swagger-ui-express": "^4.1.8",
+    "node-pg-migrate": "^8.0.4",
     "typescript": "^5.3.3"
   }
 }

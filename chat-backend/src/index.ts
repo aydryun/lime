@@ -4,11 +4,7 @@ import express from "express";
 import expressWs from "express-ws";
 import swaggerUi from "swagger-ui-express";
 import authRouter from "./auth.js";
-import {
-  getAllMessages,
-  initializeDatabase,
-  insertMessage,
-} from "./database.js";
+import { getAllMessages, insertMessage } from "./database.js";
 import { connectRedis, publishMessage, subscribeToMessages } from "./redis.js";
 import swaggerDocument from "./swagger.js";
 
@@ -30,9 +26,6 @@ const wsClients = new Set<any>();
 // Initialize
 async function start() {
   try {
-    // Initialize database
-    await initializeDatabase();
-
     // Connect to Redis
     await connectRedis();
 
@@ -64,15 +57,15 @@ async function start() {
     // Post a new message (REST)
     app.post("/api/messages", async (req, res) => {
       try {
-        const { sender, text } = req.body;
+        const { senderId, text } = req.body;
 
-        if (!sender || !text) {
-          res.status(400).json({ error: "sender and text are required" });
+        if (!senderId || !text) {
+          res.status(400).json({ error: "senderId and text are required" });
           return;
         }
 
         // Insert into PostgreSQL
-        const message = await insertMessage(sender, text);
+        const message = await insertMessage(senderId, text);
 
         // Publish to Redis
         await publishMessage("messages", message);
@@ -108,20 +101,20 @@ async function start() {
           const msg = JSON.parse(data);
 
           if (msg.type === "send_message") {
-            const { sender, text } = msg.data;
+            const { senderId, text } = msg.data;
 
-            if (!sender || !text) {
+            if (!senderId || !text) {
               ws.send(
                 JSON.stringify({
                   type: "error",
-                  data: "sender and text are required",
+                  data: "senderId and text are required",
                 }),
               );
               return;
             }
 
             // Insert into PostgreSQL
-            const message = await insertMessage(sender, text);
+            const message = await insertMessage(senderId, text);
 
             // Publish to Redis
             await publishMessage("messages", message);
