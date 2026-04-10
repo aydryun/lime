@@ -1,13 +1,16 @@
-import express from "express";
-import expressWs from "express-ws";
 import cors from "cors";
 import dotenv from "dotenv";
+import express from "express";
+import expressWs from "express-ws";
+import swaggerUi from "swagger-ui-express";
+import authRouter from "./auth.js";
 import {
-  initializeDatabase,
   getAllMessages,
+  initializeDatabase,
   insertMessage,
 } from "./database.js";
 import { connectRedis, publishMessage, subscribeToMessages } from "./redis.js";
+import swaggerDocument from "./swagger.js";
 
 dotenv.config();
 
@@ -38,6 +41,12 @@ async function start() {
     subscribeToMessages((message: any) => {
       broadcastToWebSocket({ type: "new_message", data: message });
     });
+
+    // API docs
+    app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
+    // Auth routes
+    app.use("/api/auth", authRouter);
 
     // REST API endpoints
 
