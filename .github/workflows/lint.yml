@@ -5,16 +5,26 @@ on:
     branches: [master]
 
 jobs:
-  lint:
+  lint-backend:
+    name: Lint — backend
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: chat-backend
     steps:
       - uses: actions/checkout@v4
-
       - uses: oven-sh/setup-bun@v2
-
       - run: bun install --frozen-lockfile
+      - run: bun run lint
 
+  lint-frontend:
+    name: Lint — frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: chat-client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
       - run: bun run lint
