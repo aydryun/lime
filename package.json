@@ -1,12 +1,9 @@
 {
   "name": "lime",
   "private": true,
-  "workspaces": ["packages/*"],
   "scripts": {
-    "dev:server": "bun run --filter server-core dev",
-    "dev:client": "bun run --filter client-web dev",
     "dev:chat": "cd chat-backend && bun run dev",
-    "dev": "bun run dev:server & bun run dev:client & bun run dev:chat"
+    "dev": "bun run dev:chat"
   },
   "dependencies": {
     "cors": "^2.8.6",
