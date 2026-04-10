@@ -22,10 +22,25 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .env.production.local
 .env.local
 
+# misc
+.DS_Store
+*.pem
+
+#next
+/.next
+/out/
+
+# production
+/build
+
 # caches
 .eslintcache
 .cache
 *.tsbuildinfo
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
 
 # IntelliJ based IDEs
 .idea
