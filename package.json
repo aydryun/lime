@@ -5,6 +5,15 @@
   "scripts": {
     "dev:server": "bun run --filter server-core dev",
     "dev:client": "bun run --filter client-web dev",
-    "dev": "bun run dev:server & bun run dev:client"
+    "dev:chat": "cd chat-backend && bun run dev",
+    "dev": "bun run dev:server & bun run dev:client & bun run dev:chat"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.1",
+    "express": "^5.2.1",
+    "express-ws": "^5.0.2",
+    "pg": "^8.20.0",
+    "redis": "^5.11.0"
   }
 }
