@@ -2,15 +2,24 @@
 
 > Routes minimalistes, préfixe `/api`.
 
+## Authentification
+
+Toutes les routes protégées nécessitent le header :
+```
+Authorization: Bearer <token>
+```
+
+Le token est obtenu via `POST /api/auth/login` et expire après **24 heures**.
+
 ---
 
-## Auth
+## Auth ✅
 
-| Méthode | Route                | Description                  |
-| ------- | -------------------- | ---------------------------- |
-| POST    | `/api/auth/register` | Créer un compte              |
-| POST    | `/api/auth/login`    | Connexion, retourne un token |
-| POST    | `/api/auth/logout`   | Déconnexion                  |
+| Méthode | Route                | Description                  | Status |
+| ------- | -------------------- | ---------------------------- | ------ |
+| POST    | `/api/auth/register` | Créer un compte              | ✅     |
+| POST    | `/api/auth/login`    | Connexion, retourne un token | ✅     |
+| POST    | `/api/auth/logout`   | Déconnexion                  | ✅     |
 
 ### `POST /api/auth/register`
 
@@ -36,6 +45,12 @@
 }
 ```
 
+**Erreurs :**
+| Code | Description                 |
+| ---- | --------------------------- |
+| 400  | Champs manquants            |
+| 409  | Email déjà utilisé          |
+
 ### `POST /api/auth/login`
 
 **Body :**
@@ -59,6 +74,12 @@
   }
 }
 ```
+
+**Erreurs :**
+| Code | Description                 |
+| ---- | --------------------------- |
+| 400  | Email ou mot de passe manquant |
+| 401  | Identifiants invalides      |
 
 ### `POST /api/auth/logout`
 

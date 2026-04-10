@@ -1,4 +1,5 @@
 import pkg from "pg";
+
 const { Pool } = pkg;
 
 const pool = new Pool({
@@ -13,6 +14,18 @@ const pool = new Pool({
 export async function initializeDatabase() {
   const client = await pool.connect();
   try {
+    // Create users table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        firstname VARCHAR(255) NOT NULL,
+        lastname VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        username VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL
+      );
+    `);
+
     // Create messages table
     await client.query(`
       CREATE TABLE IF NOT EXISTS messages (
@@ -25,7 +38,7 @@ export async function initializeDatabase() {
 
     // Create index on created_at for ordering
     await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_messages_created_at 
+      CREATE INDEX IF NOT EXISTS idx_messages_created_at
       ON messages(created_at DESC);
     `);
 
@@ -33,6 +46,40 @@ export async function initializeDatabase() {
   } finally {
     client.release();
   }
+}
+
+// Find user by email
+export async function findUserByEmail(email: string) {
+  const result = await pool.query("SELECT * FROM users WHERE email = $1", [
+    email,
+  ]);
+  return result.rows[0] || null;
+}
+
+// Find user by id
+export async function findUserById(id: number) {
+  const result = await pool.query(
+    "SELECT id, firstname, lastname, email, username FROM users WHERE id = $1",
+    [id],
+  );
+  return result.rows[0] || null;
+}
+
+// Create user
+export async function createUser(
+  firstname: string,
+  lastname: string,
+  email: string,
+  username: string,
+  hashedPassword: string,
+) {
+  const result = await pool.query(
+    `INSERT INTO users (firstname, lastname, email, username, password)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id, firstname, lastname, email, username`,
+    [firstname, lastname, email, username, hashedPassword],
+  );
+  return result.rows[0];
 }
 
 // Get all messages
