@@ -1,12 +1,10 @@
 import bcrypt from "bcryptjs";
 import dotenv from "dotenv";
-import pool, { createUser, initializeDatabase } from "./src/database.js";
+import pool, { createUser } from "./src/database.js";
 
 dotenv.config({ path: "../.env" });
 
 async function seed() {
-  await initializeDatabase();
-
   const users = [
     {
       firstname: "Julie",

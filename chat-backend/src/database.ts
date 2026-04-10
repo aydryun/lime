@@ -10,44 +10,6 @@ const pool = new Pool({
   database: process.env.DB_NAME || "chat_db",
 });
 
-// Initialize database schema
-export async function initializeDatabase() {
-  const client = await pool.connect();
-  try {
-    // Create users table
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        firstname VARCHAR(255) NOT NULL,
-        lastname VARCHAR(255) NOT NULL,
-        email VARCHAR(255) UNIQUE NOT NULL,
-        username VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL
-      );
-    `);
-
-    // Create messages table
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS messages (
-        id BIGSERIAL PRIMARY KEY,
-        sender VARCHAR(255) NOT NULL,
-        text TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
-
-    // Create index on created_at for ordering
-    await client.query(`
-      CREATE INDEX IF NOT EXISTS idx_messages_created_at
-      ON messages(created_at DESC);
-    `);
-
-    console.log("✓ Database schema initialized");
-  } finally {
-    client.release();
-  }
-}
-
 // Find user by email
 export async function findUserByEmail(email: string) {
   const result = await pool.query("SELECT * FROM users WHERE email = $1", [
@@ -85,16 +47,20 @@ export async function createUser(
 // Get all messages
 export async function getAllMessages() {
   const result = await pool.query(
-    "SELECT id, sender, text, created_at FROM messages ORDER BY created_at ASC",
+    `SELECT m.id, m.sender_id, u.username AS sender, m.text, m.created_at
+     FROM messages m
+     JOIN users u ON u.id = m.sender_id
+     ORDER BY m.created_at ASC`,
   );
   return result.rows;
 }
 
 // Insert a message
-export async function insertMessage(sender: string, text: string) {
+export async function insertMessage(senderId: number, text: string) {
   const result = await pool.query(
-    "INSERT INTO messages (sender, text) VALUES ($1, $2) RETURNING id, sender, text, created_at",
-    [sender, text],
+    `INSERT INTO messages (sender_id, text) VALUES ($1, $2)
+     RETURNING id, sender_id, text, created_at`,
+    [senderId, text],
   );
   return result.rows[0];
 }
