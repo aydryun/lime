@@ -1,12 +1,12 @@
-import pkg from 'pg';
+import pkg from "pg";
 const { Pool } = pkg;
 
 const pool = new Pool({
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'chat_db',
+  user: process.env.DB_USER || "postgres",
+  password: process.env.DB_PASSWORD || "postgres",
+  host: process.env.DB_HOST || "localhost",
+  port: parseInt(process.env.DB_PORT || "5432", 10),
+  database: process.env.DB_NAME || "chat_db",
 });
 
 // Initialize database schema
@@ -29,7 +29,7 @@ export async function initializeDatabase() {
       ON messages(created_at DESC);
     `);
 
-    console.log('✓ Database schema initialized');
+    console.log("✓ Database schema initialized");
   } finally {
     client.release();
   }
@@ -38,7 +38,7 @@ export async function initializeDatabase() {
 // Get all messages
 export async function getAllMessages() {
   const result = await pool.query(
-    'SELECT id, sender, text, created_at FROM messages ORDER BY created_at ASC'
+    "SELECT id, sender, text, created_at FROM messages ORDER BY created_at ASC",
   );
   return result.rows;
 }
@@ -46,8 +46,8 @@ export async function getAllMessages() {
 // Insert a message
 export async function insertMessage(sender: string, text: string) {
   const result = await pool.query(
-    'INSERT INTO messages (sender, text) VALUES ($1, $2) RETURNING id, sender, text, created_at',
-    [sender, text]
+    "INSERT INTO messages (sender, text) VALUES ($1, $2) RETURNING id, sender, text, created_at",
+    [sender, text],
   );
   return result.rows[0];
 }
