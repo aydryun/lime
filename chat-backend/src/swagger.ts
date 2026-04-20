@@ -158,6 +158,7 @@ const swaggerDocument = {
       post: {
         tags: ["Auth"],
         summary: "Déconnexion",
+        security: [{ bearerAuth: [] }],
         responses: {
           "200": {
             description: "Déconnexion réussie",

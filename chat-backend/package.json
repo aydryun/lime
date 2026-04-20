@@ -12,6 +12,7 @@
     "format": "bunx --bun @biomejs/biome format",
     "lint": "bunx --bun @biomejs/biome lint",
     "seed": "bun seed.ts",
+    "test": "bun test",
     "migrate:up": "node-pg-migrate --envPath ../.env up",
     "migrate:down": "node-pg-migrate --envPath ../.env down",
     "migrate:create": "node-pg-migrate create"

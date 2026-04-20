@@ -82,8 +82,23 @@ router.post("/login", async (req, res) => {
 });
 
 // POST /api/auth/logout
-router.post("/logout", (_req, res) => {
-  res.json({ message: "Déconnexion réussie" });
+router.post("/logout", (req, res) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : null;
+
+  if (!token) {
+    res.status(401).json({ error: "Token manquant" });
+    return;
+  }
+
+  try {
+    jwt.verify(token, JWT_SECRET);
+    res.json({ message: "Déconnexion réussie" });
+  } catch {
+    res.status(401).json({ error: "Token invalide" });
+  }
 });
 
 export default router;

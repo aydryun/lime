@@ -5,6 +5,7 @@
     "dev:chat": "cd chat-backend && bun run dev",
     "dev": "bun run dev:chat",
     "seed": "cd chat-backend && bun run seed",
+    "test": "cd chat-backend && bun run test",
     "lint": "cd chat-backend && bun run lint",
     "check": "cd chat-backend && bun run check",
     "format": "cd chat-backend && bun run format",
