@@ -11,7 +11,7 @@
     "migrate:up": "cd chat-backend && bun run migrate:up",
     "migrate:down": "cd chat-backend && bun run migrate:down",
     "migrate:create": "cd chat-backend && bun run migrate:create",
-    "db:reset": "docker exec chat_db psql -U postgres -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'chat_db' AND pid <> pg_backend_pid();\" && docker exec chat_db psql -U postgres -c 'DROP DATABASE chat_db;' && docker exec chat_db psql -U postgres -c 'CREATE DATABASE chat_db;' && bun run migrate:up && bun run seed"
+    "db:reset": "docker exec lime_postgres psql -U postgres -c \"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'lime_postgres' AND pid <> pg_backend_pid();\" && docker exec lime_postgres psql -U postgres -c 'DROP DATABASE chat_db;' && docker exec lime_postgres psql -U postgres -c 'CREATE DATABASE chat_db;' && bun run migrate:up && bun run seed"
   },
   "dependencies": {
     "cors": "^2.8.6",
