@@ -47,9 +47,31 @@ test("Succès de connexion", async () => {
 
 // api/logout
 
-test("Deconnexion", async () => {
+test("Token manquant", async () => {
   const response = await fetch(`${API_URL}/auth/logout`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  expect(response.status).toBe(401);
+});
+
+test("Deconnexion", async () => {
+  const login = await fetch(`${API_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: "lucas@lime.app",
+      password: "password123",
+    }),
+  });
+  const { token } = (await login.json()) as { token: string };
+
+  const response = await fetch(`${API_URL}/auth/logout`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
   });
   expect(response.status).toBe(200);
 });
