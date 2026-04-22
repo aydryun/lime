@@ -64,7 +64,7 @@ Ce projet utilise une architecture divisée entre un client (`chat-client`) et u
 Nous utilisons des messages de commit sémantiques. Le format recommandé est :
 
 ```
-<type>: <fonctionnalité>: <description courte>
+<type>: <description courte>
 ```
 
 **Types courants :**
@@ -76,8 +76,10 @@ Nous utilisons des messages de commit sémantiques. Le format recommandé est :
 - `refactor` : Refactorisation du code de production
 - `test` : Ajout ou modification de tests
 - `chore` : Mise à jour des tâches de build, configuration, etc.
+- `ci` : modification du pipeline CI/CD
 
-*Exemple : `feat/chat-client-emoji: ajout du support pour les emojis`*
+
+*Exemple : `feat: ajout du support pour les emojis`*
 
 ---
 
