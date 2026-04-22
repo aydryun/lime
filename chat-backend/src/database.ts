@@ -45,7 +45,7 @@ export async function createUser(
 }
 
 // Get all messages
-export async function getAllMessages() {
+export async function getAllMessages(): Promise<unknown[]> {
   const result = await pool.query(
     `SELECT m.id, m.sender_id, u.username AS sender, m.text, m.created_at
      FROM messages m

@@ -1,8 +1,9 @@
 import cors from "cors";
 import dotenv from "dotenv";
-import express from "express";
-import expressWs from "express-ws";
+import express, { type Request } from "express";
+import expressWs, { type Application, type Instance } from "express-ws";
 import swaggerUi from "swagger-ui-express";
+import type * as WebSocket from "ws";
 import authRouter from "./auth.js";
 import { getAllMessages, insertMessage } from "./database.js";
 import { connectRedis, publishMessage, subscribeToMessages } from "./redis.js";
@@ -12,16 +13,14 @@ dotenv.config();
 
 const app = express();
 
-// biome-ignore lint/suspicious/noExplicitAny : ws
-const appWithWs = expressWs(app as any).app;
+const appWithWs = expressWs(app as unknown as Application).app;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
 // Store WebSocket clients
-// biome-ignore lint/suspicious/noExplicitAny : ws
-const wsClients = new Set<any>();
+const wsClients = new Set<WebSocket.WebSocket>();
 
 // Initialize
 async function start() {
@@ -30,8 +29,7 @@ async function start() {
     await connectRedis();
 
     // Subscribe to Redis messages and broadcast to WebSocket clients
-    // biome-ignore lint/suspicious/noExplicitAny : message
-    subscribeToMessages((message: any) => {
+    subscribeToMessages((message: unknown) => {
       broadcastToWebSocket({ type: "new_message", data: message });
     });
 
@@ -78,73 +76,74 @@ async function start() {
     });
 
     // WebSocket endpoint
-    // biome-ignore lint/suspicious/noExplicitAny : message
-    (appWithWs as any).ws("/ws", (ws: any, _req: any) => {
-      console.log("🟢 Client connected via WebSocket");
-      wsClients.add(ws);
+    (appWithWs as unknown as Instance["app"]).ws(
+      "/ws",
+      (ws: WebSocket.WebSocket, _req: Request) => {
+        console.log("🟢 Client connected via WebSocket");
+        wsClients.add(ws);
 
-      // Send all existing messages on connect
-      getAllMessages()
-        .then((messages) => {
-          ws.send(
-            JSON.stringify({
-              type: "initial_messages",
-              data: messages,
-            }),
+        // Send all existing messages on connect
+        getAllMessages()
+          .then((messages) => {
+            ws.send(
+              JSON.stringify({
+                type: "initial_messages",
+                data: messages,
+              }),
+            );
+          })
+          .catch((err) =>
+            console.error("Error sending initial messages:", err),
           );
-        })
-        .catch((err) => console.error("Error sending initial messages:", err));
 
-      // biome-ignore lint/suspicious/noExplicitAny : message
-      ws.on("message", async (data: any) => {
-        try {
-          const msg = JSON.parse(data);
+        ws.on("message", async (data: string) => {
+          try {
+            const msg = JSON.parse(data);
 
-          if (msg.type === "send_message") {
-            const { senderId, text } = msg.data;
+            if (msg.type === "send_message") {
+              const { senderId, text } = msg.data;
 
-            if (!senderId || !text) {
-              ws.send(
-                JSON.stringify({
-                  type: "error",
-                  data: "senderId and text are required",
-                }),
-              );
-              return;
+              if (!senderId || !text) {
+                ws.send(
+                  JSON.stringify({
+                    type: "error",
+                    data: "senderId and text are required",
+                  }),
+                );
+                return;
+              }
+
+              // Insert into PostgreSQL
+              const message = await insertMessage(senderId, text);
+
+              // Publish to Redis
+              await publishMessage("messages", message);
             }
-
-            // Insert into PostgreSQL
-            const message = await insertMessage(senderId, text);
-
-            // Publish to Redis
-            await publishMessage("messages", message);
+          } catch (error) {
+            console.error("Error processing WebSocket message:", error);
+            ws.send(
+              JSON.stringify({
+                type: "error",
+                data: "Failed to process message",
+              }),
+            );
           }
-        } catch (error) {
-          console.error("Error processing WebSocket message:", error);
-          ws.send(
-            JSON.stringify({
-              type: "error",
-              data: "Failed to process message",
-            }),
-          );
-        }
-      });
+        });
 
-      ws.on("close", () => {
-        console.log("🔴 Client disconnected");
-        wsClients.delete(ws);
-      });
+        ws.on("close", () => {
+          console.log("🔴 Client disconnected");
+          wsClients.delete(ws);
+        });
 
-      // biome-ignore lint/suspicious/noExplicitAny : ws
-      ws.on("error", (error: any) => {
-        console.error("WebSocket error:", error);
-        wsClients.delete(ws);
-      });
-    });
+        ws.on("error", (error: Error) => {
+          console.error("WebSocket error:", error);
+          wsClients.delete(ws);
+        });
+      },
+    );
 
     // Helper function to broadcast to all WebSocket clients
-    // biome-ignore lint/suspicious/noExplicitAny : message
-    function broadcastToWebSocket(message: any) {
+    function broadcastToWebSocket(message: unknown) {
       const data = JSON.stringify(message);
       wsClients.forEach((client) => {
         if (client.readyState === 1) {

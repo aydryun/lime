@@ -17,14 +17,12 @@ export async function connectRedis() {
 }
 
 // Publish a message to the channel
-// biome-ignore lint/suspicious/noExplicitAny : message
-export async function publishMessage(channel: string, message: any) {
+export async function publishMessage(channel: string, message: unknown) {
   await redisClient.publish(channel, JSON.stringify(message));
 }
 
 // Subscribe to messages
-// biome-ignore lint/suspicious/noExplicitAny : message
-export function subscribeToMessages(callback: (message: any) => void) {
+export function subscribeToMessages(callback: (message: unknown) => void) {
   const subscriber = redisClient.duplicate();
   subscriber.connect().then(() => {
     subscriber.subscribe("messages", (message: string) => {
