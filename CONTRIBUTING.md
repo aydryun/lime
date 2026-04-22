@@ -1,6 +1,6 @@
 # Guide de Contribution (Contributing)
 
-### 3. Soumettre une Pull Request (PR)
+### 1. Soumettre une Pull Request (PR)
 
 1. cloner le dépôt et créez votre branche à partir de `main` (`git checkout -b feature/ma-nouvelle-fonctionnalite` ou `fix/mon-correctif`).
 2. Assurez-vous que votre code respecte nos standards (voir la section "Règles de codage").
