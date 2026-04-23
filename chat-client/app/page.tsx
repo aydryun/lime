@@ -89,9 +89,12 @@ export default function ChatLayout() {
 
         <div className="pb-4 flex flex-col gap-4 items-center">
           <ModeToggle />
+
           <button
             type="button"
-            aria-label="Changer de thème"
+            disabled
+            title="Paramètres (non implémenté)"
+            aria-label="Paramètres"
             className="w-12 h-12 rounded-2xl flex items-center justify-center text-muted-foreground hover:bg-muted transition-all"
           >
             <Settings className="w-6 h-6" />
@@ -183,7 +186,7 @@ export default function ChatLayout() {
             />
             <button
               type="button"
-              aria-label="Envouyer le message"
+              aria-label="Envoyer le message"
               className="w-10 h-10 rounded-md bg-primary text-primary-foreground flex items-center justify-center hover:opacity-90 transition-opacity shrink-0"
             >
               <Send className="w-4 h-4" />
