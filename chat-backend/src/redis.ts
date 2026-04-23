@@ -31,7 +31,12 @@ export function subscribeToMessages(callback: (message: unknown) => void) {
       } catch (err) {
         console.error("Failed to parse message:", err);
       }
+    }).catch((err) => {
+      console.error("subscriber subscribe failed", err);
     });
+  }).catch((err) => {
+    console.error("subscriber connect failed", err);
+    subscriber.disconnect();
   });
 
   return subscriber;
