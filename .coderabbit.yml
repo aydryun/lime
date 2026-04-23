@@ -1,5 +1,5 @@
 language: fr
-tone_instructions: 'This project uses the Bun runtime. Please provide suggestions, commands, and reviews tailored for Bun (e.g., using bun install, bun run, bun test). The project uses Biome for linting and formatting (2 spaces indentation, double quotes on the backend, auto-organized imports). Ensure suggestions adhere to Biome''s recommended rules (e.g., avoiding explicit "any" types in the backend). For the frontend, it uses Next.js (App Router) and React 19, so prefer modern React patterns and Tailwind CSS v4 conventions.'
+tone_instructions: 'Projet Bun (bun install/run/test) avec Biome pour lint/format. Stack : Next.js App Router + React 19 + Tailwind CSS v4 (front), TypeScript (back). Adapter commandes, suggestions et revues à ces outils.'
 early_access: false
 enable_free_tier: true
 inheritance: false
@@ -35,7 +35,11 @@ reviews:
   path_filters:
     - "!**/node_modules/**"
     - "!docs/**"
-  path_instructions: []
+  path_instructions:
+    - path: "chat-backend/**"
+      instructions: "Backend Bun + TypeScript. Respecter les règles Biome (2 espaces, double quotes, imports auto-triés). Éviter les types `any` explicites."
+    - path: "chat-client/**"
+      instructions: "Frontend Next.js (App Router) + React 19 + Tailwind CSS v4. Préférer les patrons React modernes (Server Components lorsque pertinent) et les conventions Tailwind v4."
   abort_on_close: true
   disable_cache: false
   slop_detection:
@@ -81,7 +85,7 @@ reviews:
       enabled: true
     ruff:
       enabled: true
-    markdo:
+    markdownlint:
       enabled: true
     github-checks:
       enabled: true

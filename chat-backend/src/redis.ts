@@ -24,6 +24,13 @@ export async function publishMessage(channel: string, message: unknown) {
 // Subscribe to messages
 export function subscribeToMessages(callback: (message: unknown) => void) {
   const subscriber = redisClient.duplicate();
+
+  const safeDisconnect = (reason: string) => {
+    subscriber.disconnect().catch((err) => {
+      console.error(`subscriber disconnect failed after ${reason}:`, err);
+    });
+  };
+
   subscriber.connect().then(() => {
     subscriber.subscribe("messages", (message: string) => {
       try {
@@ -33,10 +40,11 @@ export function subscribeToMessages(callback: (message: unknown) => void) {
       }
     }).catch((err) => {
       console.error("subscriber subscribe failed", err);
+      safeDisconnect("subscribe error");
     });
   }).catch((err) => {
     console.error("subscriber connect failed", err);
-    subscriber.disconnect();
+    safeDisconnect("connect error");
   });
 
   return subscriber;
