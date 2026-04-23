@@ -63,10 +63,11 @@ export default function ChatLayout() {
           type="button"
           aria-label="Afficher les salons"
           onClick={() => setViewMode("channels")}
-          className={`w-12 h-12 flex items-center justify-center transition-all ${viewMode === "channels"
+          className={`w-12 h-12 flex items-center justify-center transition-all ${
+            viewMode === "channels"
               ? "bg-primary text-primary-foreground rounded-xl"
               : "bg-muted text-muted-foreground hover:bg-muted/80 hover:rounded-xl rounded-2xl"
-            }`}
+          }`}
           title="Channels"
         >
           <Hash className="w-6 h-6" />
@@ -76,10 +77,11 @@ export default function ChatLayout() {
           type="button"
           aria-label="Afficher les messages privées"
           onClick={() => setViewMode("personal")}
-          className={`w-12 h-12 flex items-center justify-center transition-all ${viewMode === "personal"
+          className={`w-12 h-12 flex items-center justify-center transition-all ${
+            viewMode === "personal"
               ? "bg-primary text-primary-foreground rounded-xl"
               : "bg-muted text-muted-foreground hover:bg-muted/80 hover:rounded-xl rounded-2xl"
-            }`}
+          }`}
           title="Direct Messages"
         >
           <MessageSquare className="w-6 h-6" />
