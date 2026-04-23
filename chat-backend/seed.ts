@@ -174,11 +174,31 @@ async function seed() {
 
     // --- Messages ---
     const messages = [
-      { username: "julie", channel: "général", content: "Salut tout le monde !" },
-      { username: "lucas", channel: "général", content: "Hey ! Comment ça va ?" },
-      { username: "admin", channel: "général", content: "Bienvenue sur Lime 🍋" },
-      { username: "julie", channel: "random", content: "Quelqu'un veut un café ?" },
-      { username: "lucas", channel: "dev", content: "Le nouveau schema est prêt !" },
+      {
+        username: "julie",
+        channel: "général",
+        content: "Salut tout le monde !",
+      },
+      {
+        username: "lucas",
+        channel: "général",
+        content: "Hey ! Comment ça va ?",
+      },
+      {
+        username: "admin",
+        channel: "général",
+        content: "Bienvenue sur Lime 🍋",
+      },
+      {
+        username: "julie",
+        channel: "random",
+        content: "Quelqu'un veut un café ?",
+      },
+      {
+        username: "lucas",
+        channel: "dev",
+        content: "Le nouveau schema est prêt !",
+      },
     ];
 
     const messageIds: number[] = [];

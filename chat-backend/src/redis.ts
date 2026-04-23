@@ -17,15 +17,20 @@ export async function connectRedis() {
 }
 
 // Publish a message to the channel
-// biome-ignore lint/suspicious/noExplicitAny : message
-export async function publishMessage(channel: string, message: any) {
+export async function publishMessage(channel: string, message: unknown) {
   await redisClient.publish(channel, JSON.stringify(message));
 }
 
 // Subscribe to messages
-// biome-ignore lint/suspicious/noExplicitAny : message
-export function subscribeToMessages(callback: (message: any) => void) {
+export function subscribeToMessages(callback: (message: unknown) => void) {
   const subscriber = redisClient.duplicate();
+
+  const safeDisconnect = (reason: string) => {
+    subscriber.disconnect().catch((err) => {
+      console.error(`subscriber disconnect failed after ${reason}:`, err);
+    });
+  };
+
   subscriber.connect().then(() => {
     subscriber.subscribe("messages", (message: string) => {
       try {
@@ -33,7 +38,13 @@ export function subscribeToMessages(callback: (message: any) => void) {
       } catch (err) {
         console.error("Failed to parse message:", err);
       }
+    }).catch((err) => {
+      console.error("subscriber subscribe failed", err);
+      safeDisconnect("subscribe error");
     });
+  }).catch((err) => {
+    console.error("subscriber connect failed", err);
+    safeDisconnect("connect error");
   });
 
   return subscriber;

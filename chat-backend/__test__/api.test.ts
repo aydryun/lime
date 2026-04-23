@@ -1,4 +1,4 @@
-import { test, expect } from "bun:test";
+import { expect, test } from "bun:test";
 import { fetch } from "bun";
 
 const API_URL = "http://localhost:3001/api";
