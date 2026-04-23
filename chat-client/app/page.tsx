@@ -18,7 +18,7 @@ export default function ChatLayout() {
   const [viewMode, setViewMode] = useState<ViewMode>("channels");
 
   // Dummy data
-  const channels = ["general", "random", "announcements", "development"];
+  const channels = ["general", "hors-sujets", "annonces", "developpement"];
   const directMessages = [
     "Alice Smith",
     "Bob Jones",
@@ -30,24 +30,24 @@ export default function ChatLayout() {
       id: 1,
       user: "Alice",
       time: "10:30 AM",
-      text: "Hey everyone! How is the project going?",
+      text: "Salut tout le monde! Comment le projet se porte il ?",
     },
     {
       id: 2,
       user: "Bob",
       time: "10:32 AM",
-      text: "Going well! Just working on the new chat layout.",
+      text: "Bien ! Je travail sur la layout des canaux.",
     },
     {
       id: 3,
       user: "Charlie",
       time: "10:35 AM",
-      text: "Looks great so far. Love the theme support.",
+      text: "J'aime bien, surtout la selection de thème.",
     },
   ];
 
   const currentList = viewMode === "channels" ? channels : directMessages;
-  const listTitle = viewMode === "channels" ? "Channels" : "Direct Messages";
+  const listTitle = viewMode === "channels" ? "Canaux" : "Messages privées";
 
   return (
     <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
@@ -61,12 +61,12 @@ export default function ChatLayout() {
 
         <button
           type="button"
+          aria-label="Afficher les salons"
           onClick={() => setViewMode("channels")}
-          className={`w-12 h-12 flex items-center justify-center transition-all ${
-            viewMode === "channels"
+          className={`w-12 h-12 flex items-center justify-center transition-all ${viewMode === "channels"
               ? "bg-primary text-primary-foreground rounded-xl"
               : "bg-muted text-muted-foreground hover:bg-muted/80 hover:rounded-xl rounded-2xl"
-          }`}
+            }`}
           title="Channels"
         >
           <Hash className="w-6 h-6" />
@@ -74,12 +74,12 @@ export default function ChatLayout() {
 
         <button
           type="button"
+          aria-label="Afficher les messages privées"
           onClick={() => setViewMode("personal")}
-          className={`w-12 h-12 flex items-center justify-center transition-all ${
-            viewMode === "personal"
+          className={`w-12 h-12 flex items-center justify-center transition-all ${viewMode === "personal"
               ? "bg-primary text-primary-foreground rounded-xl"
               : "bg-muted text-muted-foreground hover:bg-muted/80 hover:rounded-xl rounded-2xl"
-          }`}
+            }`}
           title="Direct Messages"
         >
           <MessageSquare className="w-6 h-6" />
@@ -91,6 +91,7 @@ export default function ChatLayout() {
           <ModeToggle />
           <button
             type="button"
+            aria-label="Changer de thème"
             className="w-12 h-12 rounded-2xl flex items-center justify-center text-muted-foreground hover:bg-muted transition-all"
           >
             <Settings className="w-6 h-6" />
@@ -182,6 +183,7 @@ export default function ChatLayout() {
             />
             <button
               type="button"
+              aria-label="Envouyer le message"
               className="w-10 h-10 rounded-md bg-primary text-primary-foreground flex items-center justify-center hover:opacity-90 transition-opacity shrink-0"
             >
               <Send className="w-4 h-4" />

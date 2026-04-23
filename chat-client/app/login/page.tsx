@@ -26,7 +26,7 @@ export default function LoginPage() {
         <div className="space-y-2 text-center">
           <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
           <p className="text-muted-foreground text-sm">
-            Entez vous identifiants pour vous connecter à votre compte.
+            Entez vos identifiants pour vous connecter à votre compte.
           </p>
         </div>
 
