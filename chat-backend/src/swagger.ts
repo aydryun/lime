@@ -180,7 +180,7 @@ const swaggerDocument = {
       },
     },
     "/users/me": {
-      patch: {
+      put: {
         tags: ["Users"],
         summary: "Mettre à jour le profil de l'utilisateur connecté",
         security: [{ bearerAuth: [] }],
@@ -238,7 +238,7 @@ const swaggerDocument = {
       },
     },
     "/users/me/password": {
-      post: {
+      put: {
         tags: ["Users"],
         summary: "Changer le mot de passe de l'utilisateur connecté",
         security: [{ bearerAuth: [] }],

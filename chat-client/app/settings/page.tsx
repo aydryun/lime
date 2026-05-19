@@ -175,7 +175,7 @@ function AccountSection({
 
     try {
       const response = await fetch(apiUrl("/api/users/me"), {
-        method: "PATCH",
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -459,7 +459,7 @@ function PrivacySection() {
     setStatus("saving");
     try {
       const response = await fetch(apiUrl("/api/users/me/password"), {
-        method: "POST",
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,

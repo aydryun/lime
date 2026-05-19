@@ -20,8 +20,8 @@ function isUniqueViolation(error: unknown): error is PgUniqueViolation {
   );
 }
 
-// PATCH /api/users/me — update current user profile
-router.patch("/me", authenticate, async (req: AuthRequest, res) => {
+// PUT /api/users/me — update current user profile
+router.put("/me", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   if (!userId) {
     res.status(401).json({ error: "Non authentifié" });
@@ -59,8 +59,8 @@ router.patch("/me", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/users/me/password — change current user password
-router.post("/me/password", authenticate, async (req: AuthRequest, res) => {
+// PUT /api/users/me/password — change current user password
+router.put("/me/password", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   if (!userId) {
     res.status(401).json({ error: "Non authentifié" });
