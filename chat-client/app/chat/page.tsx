@@ -14,12 +14,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ModeToggle } from "@/components/theme-selector";
 import { apiUrl } from "@/lib/api";
-import {
-  type AuthUser,
-  clearSession,
-  getStoredUser,
-  getToken,
-} from "@/lib/auth";
+import { type AuthUser, clearStoredUser, getStoredUser } from "@/lib/auth";
 
 type ViewMode = "personal" | "channels";
 
@@ -33,18 +28,15 @@ export default function ChatPage() {
   }, []);
 
   const handleLogout = async () => {
-    const token = getToken();
-    if (token) {
-      try {
-        await fetch(apiUrl("/api/auth/logout"), {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } catch {
-        // Best-effort: server-side invalidation is optional; we still clear locally.
-      }
+    try {
+      await fetch(apiUrl("/api/auth/logout"), {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // Best-effort: server-side cookie clear is optional; we still clear locally.
     }
-    clearSession();
+    clearStoredUser();
     router.replace("/login");
     router.refresh();
   };

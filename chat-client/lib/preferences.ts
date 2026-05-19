@@ -15,29 +15,61 @@ export const DEFAULT_NOTIFICATIONS: NotificationPreferences = {
   mentionsOnly: false,
 };
 
+function safeGetItem(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetItem(key: string, value: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, value);
+  } catch (err) {
+    console.warn(`Failed to write ${key} to localStorage`, err);
+  }
+}
+
+/** Returns the persisted UI language, defaulting to "fr" if unset or invalid. */
 export function getStoredLanguage(): Language {
-  if (typeof window === "undefined") return "fr";
-  const value = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  const value = safeGetItem(LANGUAGE_STORAGE_KEY);
   return value === "en" || value === "fr" ? value : "fr";
 }
 
+/** Persists the chosen UI language in localStorage. */
 export function setStoredLanguage(language: Language): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+  safeSetItem(LANGUAGE_STORAGE_KEY, language);
 }
 
+function isNotificationPreferences(
+  value: unknown,
+): value is Partial<NotificationPreferences> {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    (v.desktop === undefined || typeof v.desktop === "boolean") &&
+    (v.sounds === undefined || typeof v.sounds === "boolean") &&
+    (v.mentionsOnly === undefined || typeof v.mentionsOnly === "boolean")
+  );
+}
+
+/** Returns the persisted notification preferences, merged onto the defaults. */
 export function getStoredNotifications(): NotificationPreferences {
-  if (typeof window === "undefined") return DEFAULT_NOTIFICATIONS;
-  const raw = window.localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+  const raw = safeGetItem(NOTIFICATIONS_STORAGE_KEY);
   if (!raw) return DEFAULT_NOTIFICATIONS;
   try {
-    return { ...DEFAULT_NOTIFICATIONS, ...JSON.parse(raw) };
+    const parsed: unknown = JSON.parse(raw);
+    if (!isNotificationPreferences(parsed)) return DEFAULT_NOTIFICATIONS;
+    return { ...DEFAULT_NOTIFICATIONS, ...parsed };
   } catch {
     return DEFAULT_NOTIFICATIONS;
   }
 }
 
+/** Persists the notification preferences in localStorage. */
 export function setStoredNotifications(prefs: NotificationPreferences): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(prefs));
+  safeSetItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(prefs));
 }

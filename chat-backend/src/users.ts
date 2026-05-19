@@ -20,6 +20,12 @@ function isUniqueViolation(error: unknown): error is PgUniqueViolation {
   );
 }
 
+function cleanString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 // PUT /api/users/me — update current user profile
 router.put("/me", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
@@ -28,10 +34,15 @@ router.put("/me", authenticate, async (req: AuthRequest, res) => {
     return;
   }
 
-  const { firstname, lastname, email, username } = req.body ?? {};
+  const firstname = cleanString(req.body?.firstname);
+  const lastname = cleanString(req.body?.lastname);
+  const email = cleanString(req.body?.email);
+  const username = cleanString(req.body?.username);
 
   if (!firstname || !lastname || !email || !username) {
-    res.status(400).json({ error: "Tous les champs sont requis" });
+    res.status(400).json({
+      error: "Tous les champs sont requis et doivent être des chaînes valides",
+    });
     return;
   }
 
@@ -50,8 +61,20 @@ router.put("/me", authenticate, async (req: AuthRequest, res) => {
     res.json(updated);
   } catch (error) {
     if (isUniqueViolation(error)) {
-      const field = error.constraint?.includes("email") ? "email" : "username";
-      res.status(409).json({ error: `Ce ${field} est déjà utilisé` });
+      const constraint = error.constraint ?? "";
+      if (constraint.includes("email")) {
+        res.status(409).json({ error: "Cet email est déjà utilisé" });
+        return;
+      }
+      if (constraint.includes("username")) {
+        res
+          .status(409)
+          .json({ error: "Ce nom d'utilisateur est déjà utilisé" });
+        return;
+      }
+      res
+        .status(409)
+        .json({ error: "Email ou nom d'utilisateur déjà utilisé" });
       return;
     }
     console.error("Update user error:", error);
@@ -69,12 +92,12 @@ router.put("/me/password", authenticate, async (req: AuthRequest, res) => {
 
   const { currentPassword, newPassword } = req.body ?? {};
 
-  if (!currentPassword || !newPassword) {
+  if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
     res.status(400).json({ error: "Mot de passe actuel et nouveau requis" });
     return;
   }
 
-  if (typeof newPassword !== "string" || newPassword.length < 8) {
+  if (newPassword.length < 8) {
     res.status(400).json({
       error: "Le nouveau mot de passe doit faire au moins 8 caractères",
     });
@@ -101,7 +124,11 @@ router.put("/me/password", authenticate, async (req: AuthRequest, res) => {
     }
 
     const newHash = await bcrypt.hash(newPassword, 10);
-    await updateUserPassword(userId, newHash);
+    const updated = await updateUserPassword(userId, newHash);
+    if (!updated) {
+      res.status(404).json({ error: "Utilisateur introuvable" });
+      return;
+    }
 
     res.json({ message: "Mot de passe mis à jour" });
   } catch (error) {

@@ -16,12 +16,7 @@ import { useTheme } from "next-themes";
 import { type FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { apiUrl } from "@/lib/api";
-import {
-  type AuthUser,
-  getStoredUser,
-  getToken,
-  updateStoredUser,
-} from "@/lib/auth";
+import { type AuthUser, getStoredUser, setStoredUser } from "@/lib/auth";
 import {
   DEFAULT_NOTIFICATIONS,
   getStoredLanguage,
@@ -166,20 +161,11 @@ function AccountSection({
     setStatus("saving");
     setError(null);
 
-    const token = getToken();
-    if (!token) {
-      setError("Session expirée, veuillez vous reconnecter.");
-      setStatus("idle");
-      return;
-    }
-
     try {
       const response = await fetch(apiUrl("/api/users/me"), {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ firstname, lastname, email, username }),
       });
 
@@ -194,7 +180,7 @@ function AccountSection({
       }
 
       const updated = data as AuthUser;
-      updateStoredUser(updated);
+      setStoredUser(updated);
       onUpdate(updated);
       setStatus("saved");
       setTimeout(() => setStatus("idle"), 2000);
@@ -450,20 +436,12 @@ function PrivacySection() {
       return;
     }
 
-    const token = getToken();
-    if (!token) {
-      setError("Session expirée, veuillez vous reconnecter.");
-      return;
-    }
-
     setStatus("saving");
     try {
       const response = await fetch(apiUrl("/api/users/me/password"), {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 

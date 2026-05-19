@@ -1,9 +1,6 @@
-import Cookies from "js-cookie";
-
-export const TOKEN_COOKIE = "chat_token";
 const USER_STORAGE_KEY = "chat_user";
-const TOKEN_MAX_AGE_DAYS = 1;
 
+/** Public profile of the authenticated user (no credentials). */
 export type AuthUser = {
   id: number;
   firstname: string;
@@ -12,40 +9,47 @@ export type AuthUser = {
   username: string;
 };
 
-export function setSession(token: string, user: AuthUser): void {
-  Cookies.set(TOKEN_COOKIE, token, {
-    expires: TOKEN_MAX_AGE_DAYS,
-    sameSite: "lax",
-    path: "/",
-  });
-  if (typeof window !== "undefined") {
+function isAuthUser(value: unknown): value is AuthUser {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.id === "number" &&
+    typeof v.firstname === "string" &&
+    typeof v.lastname === "string" &&
+    typeof v.email === "string" &&
+    typeof v.username === "string"
+  );
+}
+
+/** Persists the user profile in localStorage; safe to call on the server (no-op). */
+export function setStoredUser(user: AuthUser): void {
+  if (typeof window === "undefined") return;
+  try {
     window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+  } catch (err) {
+    console.warn("Failed to persist user to localStorage", err);
   }
 }
 
-export function clearSession(): void {
-  Cookies.remove(TOKEN_COOKIE, { path: "/" });
-  if (typeof window !== "undefined") {
-    window.localStorage.removeItem(USER_STORAGE_KEY);
-  }
-}
-
-export function getToken(): string | undefined {
-  return Cookies.get(TOKEN_COOKIE);
-}
-
+/** Reads the persisted user profile, returning null if absent or invalid. */
 export function getStoredUser(): AuthUser | null {
   if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(USER_STORAGE_KEY);
-  if (!raw) return null;
   try {
-    return JSON.parse(raw) as AuthUser;
+    const raw = window.localStorage.getItem(USER_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return isAuthUser(parsed) ? parsed : null;
   } catch {
     return null;
   }
 }
 
-export function updateStoredUser(user: AuthUser): void {
+/** Removes the persisted user profile from localStorage. */
+export function clearStoredUser(): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+  try {
+    window.localStorage.removeItem(USER_STORAGE_KEY);
+  } catch (err) {
+    console.warn("Failed to clear stored user", err);
+  }
 }

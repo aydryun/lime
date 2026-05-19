@@ -2,6 +2,11 @@ import { type NextRequest, NextResponse } from "next/server";
 
 const TOKEN_COOKIE = "chat_token";
 
+/**
+ * Next.js middleware that gates routes by auth cookie.
+ * Redirects unauthenticated requests to /login and authenticated
+ * requests away from /login to /chat.
+ */
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasToken = Boolean(request.cookies.get(TOKEN_COOKIE)?.value);
@@ -21,5 +26,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)"],
 };

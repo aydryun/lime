@@ -33,6 +33,16 @@ const swaggerDocument = {
           updated_at: { type: "string", example: "2026-04-10T10:00:00.000Z" },
         },
       },
+      UserPublic: {
+        type: "object",
+        properties: {
+          id: { type: "integer", example: 1 },
+          firstname: { type: "string", example: "Lucas" },
+          lastname: { type: "string", example: "Martin" },
+          email: { type: "string", example: "lucas@lime.app" },
+          username: { type: "string", example: "lucas" },
+        },
+      },
       Error: {
         type: "object",
         properties: {
@@ -206,12 +216,12 @@ const swaggerDocument = {
             description: "Profil mis à jour",
             content: {
               "application/json": {
-                schema: { $ref: "#/components/schemas/User" },
+                schema: { $ref: "#/components/schemas/UserPublic" },
               },
             },
           },
           "400": {
-            description: "Champs manquants",
+            description: "Champs manquants ou invalides",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/Error" },
@@ -220,6 +230,14 @@ const swaggerDocument = {
           },
           "401": {
             description: "Non authentifié",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Error" },
+              },
+            },
+          },
+          "404": {
+            description: "Utilisateur introuvable",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/Error" },
@@ -284,6 +302,14 @@ const swaggerDocument = {
           },
           "401": {
             description: "Non authentifié ou mot de passe actuel invalide",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Error" },
+              },
+            },
+          },
+          "404": {
+            description: "Utilisateur introuvable",
             content: {
               "application/json": {
                 schema: { $ref: "#/components/schemas/Error" },

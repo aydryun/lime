@@ -4,10 +4,9 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { apiUrl } from "@/lib/api";
-import { type AuthUser, setSession } from "@/lib/auth";
+import { type AuthUser, setStoredUser } from "@/lib/auth";
 
 type LoginResponse = {
-  token: string;
   user: AuthUser;
 };
 
@@ -26,6 +25,7 @@ export default function LoginPage() {
     try {
       const response = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
@@ -39,8 +39,8 @@ export default function LoginPage() {
         return;
       }
 
-      const { token, user } = data as LoginResponse;
-      setSession(token, user);
+      const { user } = data as LoginResponse;
+      setStoredUser(user);
       router.replace("/chat");
       router.refresh();
     } catch {
@@ -56,7 +56,7 @@ export default function LoginPage() {
         <div className="space-y-2 text-center">
           <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
           <p className="text-muted-foreground text-sm">
-            Entez vos identifiants pour vous connecter à votre compte.
+            Entrez vos identifiants pour vous connecter à votre compte.
           </p>
         </div>
 
