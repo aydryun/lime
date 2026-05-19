@@ -1,23 +1,53 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { type FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { apiUrl } from "@/lib/api";
+import { type AuthUser, setStoredUser } from "@/lib/auth";
+
+type LoginResponse = {
+  user: AuthUser;
+};
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = async (e: React.SubmitEvent) => {
+  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
-    // Simulate login API call
-    setTimeout(() => {
-      console.log("Login submitted", { email, password });
-      // Here you would typically handle the token (e.g., store in localStorage or a cookie)
+    try {
+      const response = await fetch(apiUrl("/api/auth/login"), {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = (await response.json()) as LoginResponse | { error: string };
+
+      if (!response.ok) {
+        const message =
+          "error" in data ? data.error : "Erreur lors de la connexion";
+        setError(message);
+        return;
+      }
+
+      const { user } = data as LoginResponse;
+      setStoredUser(user);
+      router.replace("/chat");
+      router.refresh();
+    } catch {
+      setError("Impossible de joindre le serveur");
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -26,7 +56,7 @@ export default function LoginPage() {
         <div className="space-y-2 text-center">
           <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
           <p className="text-muted-foreground text-sm">
-            Entez vos identifiants pour vous connecter à votre compte.
+            Entrez vos identifiants pour vous connecter à votre compte.
           </p>
         </div>
 
@@ -67,6 +97,15 @@ export default function LoginPage() {
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
             />
           </div>
+
+          {error && (
+            <p
+              role="alert"
+              className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2"
+            >
+              {error}
+            </p>
+          )}
 
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? "Connexion ..." : "Se connecter"}

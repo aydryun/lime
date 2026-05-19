@@ -1,11 +1,31 @@
 import bcrypt from "bcryptjs";
-import { Router } from "express";
+import { type Response, Router } from "express";
 import jwt from "jsonwebtoken";
 import { createUser, findUserByEmail } from "./database.js";
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "changeme";
 const JWT_EXPIRES_IN = "24h";
+
+/** Name of the HttpOnly cookie holding the JWT session token. */
+export const TOKEN_COOKIE = "chat_token";
+const TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+/** Sets the auth JWT as an HttpOnly cookie on the response. */
+function setAuthCookie(res: Response, token: string): void {
+  res.cookie(TOKEN_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: TOKEN_MAX_AGE_MS,
+    path: "/",
+  });
+}
+
+/** Removes the auth cookie from the client. */
+function clearAuthCookie(res: Response): void {
+  res.clearCookie(TOKEN_COOKIE, { path: "/" });
+}
 
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
@@ -65,6 +85,8 @@ router.post("/login", async (req, res) => {
       expiresIn: JWT_EXPIRES_IN,
     });
 
+    setAuthCookie(res, token);
+
     res.json({
       token,
       user: {
@@ -83,8 +105,12 @@ router.post("/login", async (req, res) => {
 
 // POST /api/auth/logout
 router.post("/logout", (req, res) => {
+  const cookieToken = req.cookies?.[TOKEN_COOKIE];
   const authHeader = req.headers.authorization;
-  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  const headerToken = authHeader?.startsWith("Bearer ")
+    ? authHeader.slice(7)
+    : null;
+  const token = cookieToken ?? headerToken;
 
   if (!token) {
     res.status(401).json({ error: "Token manquant" });
@@ -93,6 +119,7 @@ router.post("/logout", (req, res) => {
 
   try {
     jwt.verify(token, JWT_SECRET);
+    clearAuthCookie(res);
     res.json({ message: "Déconnexion réussie" });
   } catch {
     res.status(401).json({ error: "Token invalide" });

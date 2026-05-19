@@ -33,6 +33,16 @@ const swaggerDocument = {
           updated_at: { type: "string", example: "2026-04-10T10:00:00.000Z" },
         },
       },
+      UserPublic: {
+        type: "object",
+        properties: {
+          id: { type: "integer", example: 1 },
+          firstname: { type: "string", example: "Lucas" },
+          lastname: { type: "string", example: "Martin" },
+          email: { type: "string", example: "lucas@lime.app" },
+          username: { type: "string", example: "lucas" },
+        },
+      },
       Error: {
         type: "object",
         properties: {
@@ -173,6 +183,136 @@ const swaggerDocument = {
                     },
                   },
                 },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/users/me": {
+      put: {
+        tags: ["Users"],
+        summary: "Mettre à jour le profil de l'utilisateur connecté",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["firstname", "lastname", "email", "username"],
+                properties: {
+                  firstname: { type: "string", example: "Lucas" },
+                  lastname: { type: "string", example: "Martin" },
+                  email: { type: "string", example: "lucas@lime.app" },
+                  username: { type: "string", example: "lucas" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Profil mis à jour",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/UserPublic" },
+              },
+            },
+          },
+          "400": {
+            description: "Champs manquants ou invalides",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Error" },
+              },
+            },
+          },
+          "401": {
+            description: "Non authentifié",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Error" },
+              },
+            },
+          },
+          "404": {
+            description: "Utilisateur introuvable",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Error" },
+              },
+            },
+          },
+          "409": {
+            description: "Email ou username déjà utilisé",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Error" },
+              },
+            },
+          },
+        },
+      },
+    },
+    "/users/me/password": {
+      put: {
+        tags: ["Users"],
+        summary: "Changer le mot de passe de l'utilisateur connecté",
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["currentPassword", "newPassword"],
+                properties: {
+                  currentPassword: { type: "string", example: "password123" },
+                  newPassword: { type: "string", example: "nouveaumdp123" },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "200": {
+            description: "Mot de passe mis à jour",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    message: {
+                      type: "string",
+                      example: "Mot de passe mis à jour",
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Champs manquants ou mot de passe trop court",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Error" },
+              },
+            },
+          },
+          "401": {
+            description: "Non authentifié ou mot de passe actuel invalide",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Error" },
+              },
+            },
+          },
+          "404": {
+            description: "Utilisateur introuvable",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/Error" },
               },
             },
           },

@@ -1,3 +1,4 @@
+import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
 import express, { type Request } from "express";
@@ -8,6 +9,7 @@ import authRouter from "./auth.js";
 import { getAllMessages, insertMessage } from "./database.js";
 import { connectRedis, publishMessage, subscribeToMessages } from "./redis.js";
 import swaggerDocument from "./swagger.js";
+import usersRouter from "./users.js";
 
 dotenv.config();
 
@@ -16,7 +18,14 @@ const app = express();
 const appWithWs = expressWs(app as unknown as Application).app;
 
 // Middleware
-app.use(cors());
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? "http://localhost:3000";
+app.use(
+  cors({
+    origin: CLIENT_ORIGIN,
+    credentials: true,
+  }),
+);
+app.use(cookieParser());
 app.use(express.json());
 
 // Store WebSocket clients
@@ -38,6 +47,9 @@ async function start() {
 
     // Auth routes
     app.use("/api/auth", authRouter);
+
+    // User profile routes
+    app.use("/api/users", usersRouter);
 
     // REST API endpoints
 
