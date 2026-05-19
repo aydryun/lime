@@ -8,6 +8,7 @@ import authRouter from "./auth.js";
 import { getAllMessages, insertMessage } from "./database.js";
 import { connectRedis, publishMessage, subscribeToMessages } from "./redis.js";
 import swaggerDocument from "./swagger.js";
+import usersRouter from "./users.js";
 
 dotenv.config();
 
@@ -38,6 +39,9 @@ async function start() {
 
     // Auth routes
     app.use("/api/auth", authRouter);
+
+    // User profile routes
+    app.use("/api/users", usersRouter);
 
     // REST API endpoints
 

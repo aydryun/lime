@@ -44,6 +44,40 @@ export async function createUser(
   return result.rows[0];
 }
 
+// Update user profile (firstname, lastname, email, username)
+export async function updateUser(
+  id: number,
+  firstname: string,
+  lastname: string,
+  email: string,
+  username: string,
+) {
+  const result = await pool.query(
+    `UPDATE users
+     SET firstname = $1, lastname = $2, email = $3, username = $4
+     WHERE id = $5
+     RETURNING id, firstname, lastname, email, username`,
+    [firstname, lastname, email, username, id],
+  );
+  return result.rows[0] || null;
+}
+
+// Get user password hash (for password change verification)
+export async function getUserPasswordById(id: number): Promise<string | null> {
+  const result = await pool.query("SELECT password FROM users WHERE id = $1", [
+    id,
+  ]);
+  return result.rows[0]?.password ?? null;
+}
+
+// Update user password
+export async function updateUserPassword(id: number, hashedPassword: string) {
+  await pool.query("UPDATE users SET password = $1 WHERE id = $2", [
+    hashedPassword,
+    id,
+  ]);
+}
+
 // Get all messages
 export async function getAllMessages(): Promise<unknown[]> {
   const result = await pool.query(
