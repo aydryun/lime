@@ -21,6 +21,8 @@ import { publishMessage } from "./redis.js";
 
 const router = Router();
 
+const MAX_MESSAGE_LENGTH = 4000;
+
 function cleanName(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
@@ -463,6 +465,12 @@ router.post("/:id/messages", authenticate, async (req: AuthRequest, res) => {
     typeof req.body?.content === "string" ? req.body.content.trim() : "";
   if (!content) {
     res.status(400).json({ error: "Contenu du message requis" });
+    return;
+  }
+  if (content.length > MAX_MESSAGE_LENGTH) {
+    res.status(400).json({
+      error: `Le message ne peut pas dépasser ${MAX_MESSAGE_LENGTH} caractères`,
+    });
     return;
   }
   try {
