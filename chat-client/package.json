@@ -6,8 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "bunx --bun @biomejs/biome check",
-    "format": "bunx --bun @biomejs/biome format --write"
+    "lint": "biome check",
+    "format": "biome format --write"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
