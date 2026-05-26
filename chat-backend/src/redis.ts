@@ -31,21 +31,26 @@ export function subscribeToMessages(callback: (message: unknown) => void) {
     });
   };
 
-  subscriber.connect().then(() => {
-    subscriber.subscribe("messages", (message: string) => {
-      try {
-        callback(JSON.parse(message));
-      } catch (err) {
-        console.error("Failed to parse message:", err);
-      }
-    }).catch((err) => {
-      console.error("subscriber subscribe failed", err);
-      safeDisconnect("subscribe error");
+  subscriber
+    .connect()
+    .then(() => {
+      subscriber
+        .subscribe("messages", (message: string) => {
+          try {
+            callback(JSON.parse(message));
+          } catch (err) {
+            console.error("Failed to parse message:", err);
+          }
+        })
+        .catch((err) => {
+          console.error("subscriber subscribe failed", err);
+          safeDisconnect("subscribe error");
+        });
+    })
+    .catch((err) => {
+      console.error("subscriber connect failed", err);
+      safeDisconnect("connect error");
     });
-  }).catch((err) => {
-    console.error("subscriber connect failed", err);
-    safeDisconnect("connect error");
-  });
 
   return subscriber;
 }

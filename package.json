@@ -7,6 +7,7 @@
     "seed": "cd chat-backend && bun run seed",
     "blint": "cd chat-backend && bun run lint",
     "flint": "cd chat-client && bun run lint",
+    "lint": "bun run blint && bun run flint",
     "check": "cd chat-backend && bun run check",
     "format": "cd chat-backend && bun run format",
     "migrate:up": "cd chat-backend && bun run migrate:up",

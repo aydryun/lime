@@ -57,6 +57,12 @@ async function seed() {
       { name: "admin", is_admin: true, is_super_admin: true },
       { name: "moderator", is_admin: true, is_super_admin: false },
       { name: "member", is_admin: false, is_super_admin: false },
+      { name: "team_owner", is_admin: true, is_super_admin: false },
+      { name: "team_admin", is_admin: true, is_super_admin: false },
+      { name: "team_member", is_admin: false, is_super_admin: false },
+      { name: "canal_owner", is_admin: true, is_super_admin: false },
+      { name: "canal_admin", is_admin: true, is_super_admin: false },
+      { name: "canal_member", is_admin: false, is_super_admin: false },
     ];
 
     const roleIds: Record<string, number> = {};
@@ -171,6 +177,36 @@ async function seed() {
       );
     }
     console.log("✓ Team liée aux channels");
+
+    // --- Channel roles per user ---
+    // Un owner différent par canal pour faciliter les tests.
+    const channelOwners: Record<string, string> = {
+      général: "admin",
+      random: "julie",
+      dev: "lucas",
+    };
+    const channelAdmins: Record<string, string[]> = {
+      général: ["julie"],
+      random: [],
+      dev: [],
+    };
+
+    for (const name of channelNames) {
+      const ownerUsername = channelOwners[name];
+      const adminUsernames = channelAdmins[name] ?? [];
+      for (const username of Object.keys(userIds)) {
+        let roleName: "canal_owner" | "canal_admin" | "canal_member";
+        if (username === ownerUsername) roleName = "canal_owner";
+        else if (adminUsernames.includes(username)) roleName = "canal_admin";
+        else roleName = "canal_member";
+        await client.query(
+          `INSERT INTO user_roles (user_id, role_id, channel_id)
+           VALUES ($1, $2, $3)`,
+          [userIds[username], roleIds[roleName], channelIds[name]],
+        );
+      }
+    }
+    console.log("✓ Rôles canal attribués");
 
     // --- Messages ---
     const messages = [
