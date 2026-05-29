@@ -27,21 +27,60 @@ export async function findUserById(id: number) {
   return result.rows[0] || null;
 }
 
-/** Inserts a new user and returns its public profile. */
-export async function createUser(
+/** Resolves a role name to its roles.id (cached after first lookup). */
+const roleIdCache = new Map<string, number>();
+export async function getRoleId(name: string): Promise<number> {
+  const cached = roleIdCache.get(name);
+  if (cached) return cached;
+  const result = await pool.query(
+    "SELECT id FROM roles WHERE name = $1 LIMIT 1",
+    [name],
+  );
+  const id = result.rows[0]?.id as number | undefined;
+  if (!id) throw new Error(`Missing role in DB: ${name}`);
+  roleIdCache.set(name, id);
+  return id;
+}
+
+/**
+ * Registers a new tenant: creates an organisation, its first user, and grants
+ * that user the org_owner role — atomically. Returns the user public profile.
+ */
+export async function createUserWithOrganisation(
   firstname: string,
   lastname: string,
   email: string,
   username: string,
   hashedPassword: string,
+  organisationName: string,
 ) {
-  const result = await pool.query(
-    `INSERT INTO users (firstname, lastname, email, username, password)
-     VALUES ($1, $2, $3, $4, $5)
-     RETURNING id, firstname, lastname, email, username`,
-    [firstname, lastname, email, username, hashedPassword],
-  );
-  return result.rows[0];
+  const ownerRoleId = await getRoleId("org_owner");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const org = await client.query(
+      `INSERT INTO organisations (nom) VALUES ($1) RETURNING id, nom`,
+      [organisationName],
+    );
+    const orgId = org.rows[0].id as number;
+    const user = await client.query(
+      `INSERT INTO users (firstname, lastname, email, username, password, org_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, firstname, lastname, email, username, org_id`,
+      [firstname, lastname, email, username, hashedPassword, orgId],
+    );
+    await client.query(
+      `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)`,
+      [user.rows[0].id, ownerRoleId, orgId],
+    );
+    await client.query("COMMIT");
+    return user.rows[0];
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /** Updates the profile of an existing user; returns the updated public profile or null if not found. */
@@ -106,9 +145,9 @@ export async function insertChannelMessage(
 ) {
   const result = await pool.query(
     `WITH inserted AS (
-       INSERT INTO messages (channel_id, user_id, content)
-       VALUES ($1, $2, $3)
-       RETURNING id, channel_id, user_id, content, created_at, is_updated, is_pinned
+       INSERT INTO messages (channel_id, user_id, content, org_id)
+       VALUES ($1, $2, $3, (SELECT org_id FROM channels WHERE id = $1))
+       RETURNING id, channel_id, user_id, content, created_at, is_updated, is_pinned, org_id
      )
      SELECT i.*, u.username AS sender
      FROM inserted i
@@ -150,6 +189,7 @@ export async function getCanalRoleId(role: CanalRole): Promise<number> {
 /** Channels visible to a user: direct membership, via team, or via user_roles canal entry. */
 export async function listUserChannels(
   userId: number,
+  orgId: number,
 ): Promise<Array<ChannelRow & { my_role: CanalRole }>> {
   const result = await pool.query(
     `WITH my_channels AS (
@@ -161,7 +201,8 @@ export async function listUserChannels(
        LEFT JOIN user_roles ur
          ON ur.channel_id = c.id AND ur.user_id = $1
          AND ur.role_id IN (SELECT id FROM roles WHERE name = ANY($2::text[]))
-       WHERE ctu.user_id = $1 OR tu.user_id = $1 OR ur.id IS NOT NULL
+       WHERE c.org_id = $3
+         AND (ctu.user_id = $1 OR tu.user_id = $1 OR ur.id IS NOT NULL)
      )
      SELECT mc.id, mc.name,
             COALESCE(
@@ -178,7 +219,7 @@ export async function listUserChannels(
             ) AS my_role
      FROM my_channels mc
      ORDER BY mc.id ASC`,
-    [userId, CANAL_ROLE_NAMES],
+    [userId, CANAL_ROLE_NAMES, orgId],
   );
   return result.rows;
 }
@@ -202,8 +243,10 @@ export async function createChannel(
   try {
     await client.query("BEGIN");
     const channel = await client.query(
-      `INSERT INTO channels (name) VALUES ($1) RETURNING id, name`,
-      [name],
+      `INSERT INTO channels (name, org_id)
+       VALUES ($1, (SELECT org_id FROM users WHERE id = $2))
+       RETURNING id, name`,
+      [name, creatorId],
     );
     const channelRow = channel.rows[0] as ChannelRow;
     await client.query(
@@ -337,7 +380,15 @@ export async function listChannelMembers(
 export async function getUserChannelRole(
   channelId: number,
   userId: number,
+  orgId: number,
 ): Promise<CanalRole | null> {
+  // Isolation tenant : un canal hors de l'org de l'appelant n'existe pas pour lui.
+  const inOrg = await pool.query(
+    "SELECT 1 FROM channels WHERE id = $1 AND org_id = $2",
+    [channelId, orgId],
+  );
+  if ((inOrg.rowCount ?? 0) === 0) return null;
+
   const explicit = await pool.query(
     `SELECT r.name
      FROM user_roles ur
@@ -375,6 +426,16 @@ export async function addChannelMember(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    // Isolation tenant : on ne peut ajouter qu'un utilisateur de la même org que le canal.
+    const sameOrg = await client.query(
+      `SELECT 1 FROM users u JOIN channels c ON c.id = $2
+       WHERE u.id = $1 AND u.org_id = c.org_id`,
+      [userId, channelId],
+    );
+    if ((sameOrg.rowCount ?? 0) === 0) {
+      await client.query("ROLLBACK");
+      return false;
+    }
     const ins = await client.query(
       `INSERT INTO channel_team_users (channel_id, user_id)
        VALUES ($1, $2)
@@ -529,7 +590,8 @@ export async function listNonMembers(
   const result = await pool.query(
     `SELECT u.id, u.username, u.firstname, u.lastname
      FROM users u
-     WHERE u.id NOT IN (
+     WHERE u.org_id = (SELECT org_id FROM channels WHERE id = $1)
+     AND u.id NOT IN (
        SELECT user_id FROM channel_team_users
        WHERE channel_id = $1 AND user_id IS NOT NULL
        UNION

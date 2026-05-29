@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { type Response, Router } from "express";
 import jwt from "jsonwebtoken";
-import { createUser, findUserByEmail } from "./database.js";
+import { createUserWithOrganisation, findUserByEmail } from "./database.js";
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || "changeme";
@@ -30,7 +30,8 @@ function clearAuthCookie(res: Response): void {
 // POST /api/auth/register
 router.post("/register", async (req, res) => {
   try {
-    const { firstname, lastname, email, username, password } = req.body;
+    const { firstname, lastname, email, username, password, organisation } =
+      req.body;
 
     if (!firstname || !lastname || !email || !username || !password) {
       res.status(400).json({ error: "Tous les champs sont requis" });
@@ -43,13 +44,20 @@ router.post("/register", async (req, res) => {
       return;
     }
 
+    // Un nouveau compte crée sa propre organisation et en devient owner.
+    const organisationName =
+      typeof organisation === "string" && organisation.trim()
+        ? organisation.trim()
+        : `Organisation de ${firstname}`;
+
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await createUser(
+    const user = await createUserWithOrganisation(
       firstname,
       lastname,
       email,
       username,
       hashedPassword,
+      organisationName,
     );
 
     res.status(201).json(user);
@@ -81,9 +89,11 @@ router.post("/login", async (req, res) => {
       return;
     }
 
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, {
-      expiresIn: JWT_EXPIRES_IN,
-    });
+    const token = jwt.sign(
+      { userId: user.id, orgId: user.org_id },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN },
+    );
 
     setAuthCookie(res, token);
 
@@ -95,6 +105,7 @@ router.post("/login", async (req, res) => {
         lastname: user.lastname,
         email: user.email,
         username: user.username,
+        org_id: user.org_id,
       },
     });
   } catch (error) {

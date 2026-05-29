@@ -10,6 +10,14 @@ async function seed() {
   try {
     await client.query("BEGIN");
 
+    // --- Organisation (tenant) ---
+    const orgResult = await client.query(
+      `INSERT INTO organisations (nom) VALUES ($1) RETURNING id`,
+      ["Organisation Lime"],
+    );
+    const orgId = orgResult.rows[0].id;
+    console.log("✓ Organisation créée : Organisation Lime");
+
     // --- Users ---
     const users = [
       {
@@ -40,11 +48,11 @@ async function seed() {
     for (const u of users) {
       const hashed = await bcrypt.hash(u.password, 10);
       const result = await client.query(
-        `INSERT INTO users (firstname, lastname, email, username, password)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO users (firstname, lastname, email, username, password, org_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
          RETURNING id, username`,
-        [u.firstname, u.lastname, u.email, u.username, hashed],
+        [u.firstname, u.lastname, u.email, u.username, hashed, orgId],
       );
       userIds[result.rows[0].username] = result.rows[0].id;
       console.log(
@@ -60,6 +68,8 @@ async function seed() {
       { name: "team_owner", is_admin: true, is_super_admin: false },
       { name: "team_admin", is_admin: true, is_super_admin: false },
       { name: "team_member", is_admin: false, is_super_admin: false },
+      { name: "org_owner", is_admin: true, is_super_admin: false },
+      { name: "org_admin", is_admin: true, is_super_admin: false },
       { name: "canal_owner", is_admin: true, is_super_admin: false },
       { name: "canal_admin", is_admin: true, is_super_admin: false },
       { name: "canal_member", is_admin: false, is_super_admin: false },
@@ -141,8 +151,8 @@ async function seed() {
 
     // --- Teams ---
     const teamResult = await client.query(
-      `INSERT INTO teams (name) VALUES ($1) RETURNING id`,
-      ["Équipe Lime"],
+      `INSERT INTO teams (name, org_id) VALUES ($1, $2) RETURNING id`,
+      ["Équipe Lime", orgId],
     );
     const teamId = teamResult.rows[0].id;
     console.log("✓ Team créée : Équipe Lime");
@@ -162,8 +172,8 @@ async function seed() {
 
     for (const name of channelNames) {
       const result = await client.query(
-        `INSERT INTO channels (name) VALUES ($1) RETURNING id`,
-        [name],
+        `INSERT INTO channels (name, org_id) VALUES ($1, $2) RETURNING id`,
+        [name, orgId],
       );
       channelIds[name] = result.rows[0].id;
     }
@@ -241,10 +251,10 @@ async function seed() {
 
     for (const m of messages) {
       const result = await client.query(
-        `INSERT INTO messages (channel_id, user_id, content)
-         VALUES ($1, $2, $3)
+        `INSERT INTO messages (channel_id, user_id, content, org_id)
+         VALUES ($1, $2, $3, $4)
          RETURNING id`,
-        [channelIds[m.channel], userIds[m.username], m.content],
+        [channelIds[m.channel], userIds[m.username], m.content, orgId],
       );
       messageIds.push(result.rows[0].id);
     }
@@ -267,6 +277,18 @@ async function seed() {
       [messageIds[2], userIds.lucas, "🍋"],
     );
     console.log("✓ Réactions ajoutées");
+
+    // --- Org roles ---
+    // Admin : owner de l'org ; Julie : admin de l'org.
+    await client.query(
+      `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)`,
+      [userIds.admin, roleIds.org_owner, orgId],
+    );
+    await client.query(
+      `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)`,
+      [userIds.julie, roleIds.org_admin, orgId],
+    );
+    console.log("✓ Rôles org attribués");
 
     // --- User roles ---
     // Admin : rôle admin sur la team
