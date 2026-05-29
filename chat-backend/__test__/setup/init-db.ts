@@ -1,5 +1,5 @@
-import { $ } from "bun";
 import bcrypt from "bcryptjs";
+import { $ } from "bun";
 import pool from "../../src/database.js";
 
 async function initDb() {
@@ -44,11 +44,11 @@ async function initDb() {
     // Création de l'Équipe et du Canal
     const { rows: teams } = await client.query(
       `INSERT INTO teams (name, org_id) VALUES ('Test Team', $1) RETURNING id`,
-      [orgId]
+      [orgId],
     );
     const { rows: channels } = await client.query(
       `INSERT INTO channels (name, org_id) VALUES ('général-test', $1) RETURNING id`,
-      [orgId]
+      [orgId],
     );
     const teamId = teams[0].id;
     const channelId = channels[0].id;

@@ -39,8 +39,8 @@ jobs:
 
       - name: Lancer services et tests
         run: |
-          # Démarre les services définis par compose.yml
-          docker compose up -d
+          # Démarre uniquement postgres et redis du compose.yml
+          docker compose up -d postgres redis
 
           # Attendre que Postgres soit prêt
           until docker exec lime_postgres pg_isready -U postgres; do sleep 1; done
