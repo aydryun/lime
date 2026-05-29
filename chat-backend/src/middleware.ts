@@ -4,9 +4,10 @@ import { TOKEN_COOKIE } from "./auth.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "changeme";
 
-/** Express request enriched with the authenticated user's id (populated by `authenticate`). */
+/** Express request enriched with the authenticated user's id and org (populated by `authenticate`). */
 export interface AuthRequest extends Request {
   userId?: number;
+  orgId?: number;
 }
 
 /**
@@ -30,8 +31,12 @@ export function authenticate(
   }
 
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { userId: number };
+    const payload = jwt.verify(token, JWT_SECRET) as {
+      userId: number;
+      orgId: number;
+    };
     req.userId = payload.userId;
+    req.orgId = payload.orgId;
     next();
   } catch {
     res.status(401).json({ error: "Token invalide" });

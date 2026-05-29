@@ -38,12 +38,13 @@ function parseIdParam(value: string): number | null {
 // GET /api/channels — list channels the current user belongs to
 router.get("/", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
-  if (!userId) {
+  const orgId = req.orgId;
+  if (!userId || !orgId) {
     res.status(401).json({ error: "Non authentifié" });
     return;
   }
   try {
-    const channels = await listUserChannels(userId);
+    const channels = await listUserChannels(userId, orgId);
     res.json(channels);
   } catch (error) {
     console.error("List channels error:", error);
@@ -56,7 +57,8 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
 // POST /api/channels — create a new channel (creator becomes canal_owner)
 router.post("/", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
-  if (!userId) {
+  const orgId = req.orgId;
+  if (!userId || !orgId) {
     res.status(401).json({ error: "Non authentifié" });
     return;
   }
@@ -77,7 +79,8 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
 // PATCH /api/channels/:id — rename (owner only)
 router.patch("/:id", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
-  if (!userId) {
+  const orgId = req.orgId;
+  if (!userId || !orgId) {
     res.status(401).json({ error: "Non authentifié" });
     return;
   }
@@ -92,7 +95,7 @@ router.patch("/:id", authenticate, async (req: AuthRequest, res) => {
     return;
   }
   try {
-    const role = await getUserChannelRole(id, userId);
+    const role = await getUserChannelRole(id, userId, orgId);
     if (!role) {
       res.status(403).json({ error: "Accès refusé" });
       return;
@@ -118,7 +121,8 @@ router.patch("/:id", authenticate, async (req: AuthRequest, res) => {
 // DELETE /api/channels/:id — owner deletes the channel for everyone
 router.delete("/:id", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
-  if (!userId) {
+  const orgId = req.orgId;
+  if (!userId || !orgId) {
     res.status(401).json({ error: "Non authentifié" });
     return;
   }
@@ -128,7 +132,7 @@ router.delete("/:id", authenticate, async (req: AuthRequest, res) => {
     return;
   }
   try {
-    const role = await getUserChannelRole(id, userId);
+    const role = await getUserChannelRole(id, userId, orgId);
     if (!role) {
       res.status(403).json({ error: "Accès refusé" });
       return;
@@ -154,7 +158,8 @@ router.delete("/:id", authenticate, async (req: AuthRequest, res) => {
 // GET /api/channels/:id/members — list members with roles
 router.get("/:id/members", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
-  if (!userId) {
+  const orgId = req.orgId;
+  if (!userId || !orgId) {
     res.status(401).json({ error: "Non authentifié" });
     return;
   }
@@ -164,7 +169,7 @@ router.get("/:id/members", authenticate, async (req: AuthRequest, res) => {
     return;
   }
   try {
-    const role = await getUserChannelRole(id, userId);
+    const role = await getUserChannelRole(id, userId, orgId);
     if (!role) {
       res.status(403).json({ error: "Accès refusé" });
       return;
@@ -182,7 +187,8 @@ router.get("/:id/members", authenticate, async (req: AuthRequest, res) => {
 // GET /api/channels/:id/non-members?q=... — users not in the channel (member picker)
 router.get("/:id/non-members", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
-  if (!userId) {
+  const orgId = req.orgId;
+  if (!userId || !orgId) {
     res.status(401).json({ error: "Non authentifié" });
     return;
   }
@@ -193,7 +199,7 @@ router.get("/:id/non-members", authenticate, async (req: AuthRequest, res) => {
   }
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   try {
-    const role = await getUserChannelRole(id, userId);
+    const role = await getUserChannelRole(id, userId, orgId);
     if (!role || role === "canal_member") {
       res.status(403).json({ error: "Accès refusé" });
       return;
@@ -211,7 +217,8 @@ router.get("/:id/non-members", authenticate, async (req: AuthRequest, res) => {
 // POST /api/channels/:id/members — add a member (owner or admin)
 router.post("/:id/members", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
-  if (!userId) {
+  const orgId = req.orgId;
+  if (!userId || !orgId) {
     res.status(401).json({ error: "Non authentifié" });
     return;
   }
@@ -227,7 +234,7 @@ router.post("/:id/members", authenticate, async (req: AuthRequest, res) => {
     return;
   }
   try {
-    const role = await getUserChannelRole(id, userId);
+    const role = await getUserChannelRole(id, userId, orgId);
     if (!role || role === "canal_member") {
       res.status(403).json({ error: "Accès refusé" });
       return;
@@ -259,7 +266,8 @@ router.patch(
   authenticate,
   async (req: AuthRequest, res) => {
     const callerId = req.userId;
-    if (!callerId) {
+    const orgId = req.orgId;
+    if (!callerId || !orgId) {
       res.status(401).json({ error: "Non authentifié" });
       return;
     }
@@ -277,14 +285,14 @@ router.patch(
       return;
     }
     try {
-      const callerRole = await getUserChannelRole(id, callerId);
+      const callerRole = await getUserChannelRole(id, callerId, orgId);
       if (callerRole !== "canal_owner") {
         res
           .status(403)
           .json({ error: "Seul le propriétaire peut changer les rôles" });
         return;
       }
-      const targetRole = await getUserChannelRole(id, targetId);
+      const targetRole = await getUserChannelRole(id, targetId, orgId);
       if (!targetRole) {
         res.status(404).json({ error: "Membre introuvable" });
         return;
@@ -307,7 +315,8 @@ router.patch(
 // POST /api/channels/:id/transfer — transfer ownership to userId, current owner leaves
 router.post("/:id/transfer", authenticate, async (req: AuthRequest, res) => {
   const callerId = req.userId;
-  if (!callerId) {
+  const orgId = req.orgId;
+  if (!callerId || !orgId) {
     res.status(401).json({ error: "Non authentifié" });
     return;
   }
@@ -323,14 +332,14 @@ router.post("/:id/transfer", authenticate, async (req: AuthRequest, res) => {
     return;
   }
   try {
-    const callerRole = await getUserChannelRole(id, callerId);
+    const callerRole = await getUserChannelRole(id, callerId, orgId);
     if (callerRole !== "canal_owner") {
       res
         .status(403)
         .json({ error: "Seul le propriétaire peut transférer le canal" });
       return;
     }
-    const targetRole = await getUserChannelRole(id, newOwnerId);
+    const targetRole = await getUserChannelRole(id, newOwnerId, orgId);
     if (!targetRole) {
       res.status(404).json({ error: "Utilisateur cible non membre" });
       return;
@@ -349,7 +358,8 @@ router.delete(
   authenticate,
   async (req: AuthRequest, res) => {
     const callerId = req.userId;
-    if (!callerId) {
+    const orgId = req.orgId;
+    if (!callerId || !orgId) {
       res.status(401).json({ error: "Non authentifié" });
       return;
     }
@@ -360,12 +370,12 @@ router.delete(
       return;
     }
     try {
-      const callerRole = await getUserChannelRole(id, callerId);
+      const callerRole = await getUserChannelRole(id, callerId, orgId);
       if (!callerRole) {
         res.status(403).json({ error: "Accès refusé" });
         return;
       }
-      const targetRole = await getUserChannelRole(id, targetId);
+      const targetRole = await getUserChannelRole(id, targetId, orgId);
       if (!targetRole) {
         res.status(404).json({ error: "Membre introuvable" });
         return;
@@ -424,7 +434,8 @@ router.delete(
 // GET /api/channels/:id/messages — list channel messages
 router.get("/:id/messages", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
-  if (!userId) {
+  const orgId = req.orgId;
+  if (!userId || !orgId) {
     res.status(401).json({ error: "Non authentifié" });
     return;
   }
@@ -434,7 +445,7 @@ router.get("/:id/messages", authenticate, async (req: AuthRequest, res) => {
     return;
   }
   try {
-    const role = await getUserChannelRole(id, userId);
+    const role = await getUserChannelRole(id, userId, orgId);
     if (!role) {
       res.status(403).json({ error: "Accès refusé" });
       return;
@@ -452,7 +463,8 @@ router.get("/:id/messages", authenticate, async (req: AuthRequest, res) => {
 // POST /api/channels/:id/messages — post a message in a channel
 router.post("/:id/messages", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
-  if (!userId) {
+  const orgId = req.orgId;
+  if (!userId || !orgId) {
     res.status(401).json({ error: "Non authentifié" });
     return;
   }
@@ -474,7 +486,7 @@ router.post("/:id/messages", authenticate, async (req: AuthRequest, res) => {
     return;
   }
   try {
-    const role = await getUserChannelRole(id, userId);
+    const role = await getUserChannelRole(id, userId, orgId);
     if (!role) {
       res.status(403).json({ error: "Accès refusé" });
       return;

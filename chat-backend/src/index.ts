@@ -3,15 +3,18 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express, { type Request } from "express";
 import expressWs, { type Application, type Instance } from "express-ws";
+import jwt from "jsonwebtoken";
 import swaggerUi from "swagger-ui-express";
 import type * as WebSocket from "ws";
-import authRouter from "./auth.js";
+import authRouter, { TOKEN_COOKIE } from "./auth.js";
 import channelsRouter from "./channels.js";
 import { connectRedis, subscribeToMessages } from "./redis.js";
 import swaggerDocument from "./swagger.js";
 import usersRouter from "./users.js";
 
 dotenv.config();
+
+const JWT_SECRET = process.env.JWT_SECRET || "changeme";
 
 const app = express();
 
@@ -28,8 +31,26 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 
-// Store WebSocket clients
-const wsClients = new Set<WebSocket.WebSocket>();
+// Connected WebSocket clients, each tagged with its tenant (org) for scoped broadcast.
+const wsClients = new Map<WebSocket.WebSocket, number>();
+
+/** Extracts the JWT from the ws upgrade request (HttpOnly cookie or Bearer header). */
+function tokenFromRequest(req: Request): string | null {
+  const cookieToken = (req as Request & { cookies?: Record<string, string> })
+    .cookies?.[TOKEN_COOKIE];
+  if (cookieToken) return cookieToken;
+  const header = req.headers.authorization;
+  if (header?.startsWith("Bearer ")) return header.slice(7);
+  // Fallback : parse manuel du header Cookie si cookie-parser n'a pas tourné.
+  const raw = req.headers.cookie;
+  if (raw) {
+    for (const part of raw.split(";")) {
+      const [name, ...rest] = part.trim().split("=");
+      if (name === TOKEN_COOKIE) return decodeURIComponent(rest.join("="));
+    }
+  }
+  return null;
+}
 
 // Initialize
 async function start() {
@@ -37,9 +58,11 @@ async function start() {
     // Connect to Redis
     await connectRedis();
 
-    // Subscribe to Redis messages and broadcast to WebSocket clients
+    // Subscribe to Redis messages and broadcast to clients of the message's org only.
     subscribeToMessages((message: unknown) => {
-      broadcastToWebSocket({ type: "new_message", data: message });
+      const orgId = (message as { org_id?: number })?.org_id;
+      if (typeof orgId !== "number") return; // sans org connue, on ne diffuse pas
+      broadcastToOrg(orgId, { type: "new_message", data: message });
     });
 
     // API docs
@@ -54,12 +77,25 @@ async function start() {
     // Channel + per-channel message routes
     app.use("/api/channels", channelsRouter);
 
-    // WebSocket endpoint — broadcast-only relay for messages published to Redis.
+    // WebSocket endpoint — authenticated relay, scoped to the client's org.
     (appWithWs as unknown as Instance["app"]).ws(
       "/ws",
-      (ws: WebSocket.WebSocket, _req: Request) => {
-        console.log("🟢 Client connected via WebSocket");
-        wsClients.add(ws);
+      (ws: WebSocket.WebSocket, req: Request) => {
+        const token = tokenFromRequest(req);
+        let orgId: number;
+        try {
+          const payload = jwt.verify(token ?? "", JWT_SECRET) as {
+            userId: number;
+            orgId: number;
+          };
+          orgId = payload.orgId;
+        } catch {
+          ws.close(1008, "Unauthorized");
+          return;
+        }
+
+        console.log(`🟢 Client connected via WebSocket (org ${orgId})`);
+        wsClients.set(ws, orgId);
 
         ws.on("close", () => {
           console.log("🔴 Client disconnected");
@@ -73,11 +109,11 @@ async function start() {
       },
     );
 
-    // Helper function to broadcast to all WebSocket clients
-    function broadcastToWebSocket(message: unknown) {
+    // Broadcast only to clients belonging to the given org (tenant isolation).
+    function broadcastToOrg(orgId: number, message: unknown) {
       const data = JSON.stringify(message);
-      wsClients.forEach((client) => {
-        if (client.readyState === 1) {
+      wsClients.forEach((clientOrg, client) => {
+        if (clientOrg === orgId && client.readyState === 1) {
           // OPEN
           client.send(data);
         }
