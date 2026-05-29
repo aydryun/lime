@@ -68,7 +68,7 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
     return;
   }
   try {
-    const channel = await createChannel(name, userId);
+    const channel = await createChannel(name, userId, orgId);
     res.status(201).json({ ...channel, my_role: "canal_owner" });
   } catch (error) {
     console.error("Create channel error:", error);

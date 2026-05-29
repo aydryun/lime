@@ -1,8 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { TOKEN_COOKIE } from "./auth.js";
-
-const JWT_SECRET = process.env.JWT_SECRET || "changeme";
+import { JWT_SECRET } from "./config.js";
 
 /** Express request enriched with the authenticated user's id and org (populated by `authenticate`). */
 export interface AuthRequest extends Request {
@@ -32,9 +31,14 @@ export function authenticate(
 
   try {
     const payload = jwt.verify(token, JWT_SECRET) as {
-      userId: number;
-      orgId: number;
+      userId?: unknown;
+      orgId?: unknown;
     };
+    // Validation runtime : un token antérieur au multi-tenant n'a pas d'orgId.
+    if (typeof payload.userId !== "number" || typeof payload.orgId !== "number") {
+      res.status(401).json({ error: "Token invalide" });
+      return;
+    }
     req.userId = payload.userId;
     req.orgId = payload.orgId;
     next();

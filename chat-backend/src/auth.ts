@@ -1,10 +1,10 @@
 import bcrypt from "bcryptjs";
 import { type Response, Router } from "express";
 import jwt from "jsonwebtoken";
+import { JWT_SECRET } from "./config.js";
 import { createUserWithOrganisation, findUserByEmail } from "./database.js";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || "changeme";
 const JWT_EXPIRES_IN = "24h";
 
 /** Name of the HttpOnly cookie holding the JWT session token. */

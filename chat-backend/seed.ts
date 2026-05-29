@@ -81,6 +81,9 @@ async function seed() {
       const result = await client.query(
         `INSERT INTO roles (name, is_admin, is_super_admin)
          VALUES ($1, $2, $3)
+         ON CONFLICT (name) DO UPDATE
+           SET is_admin = EXCLUDED.is_admin,
+               is_super_admin = EXCLUDED.is_super_admin
          RETURNING id, name`,
         [r.name, r.is_admin, r.is_super_admin],
       );
