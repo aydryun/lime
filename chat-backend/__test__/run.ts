@@ -10,15 +10,15 @@ const server = Bun.spawn(["bun", "src/index.ts"], {
 
 /**
  * Verifie l'état de l'api avant de passer les tests
- * 5x tout les 100ms
+ * 5x tout les 1s
  * Quand api est up -> on passe a la suite (break;)
  */
 for (let index = 0; index < 5; index++) {
   try {
-    await fetch(`http://localhost:${process.env.CHAT_PORT}/api/docs`);
+    await fetch(`http://localhost:${process.env.PORT}/api/docs`);
     break;
   } catch {
-    await Bun.sleep(100);
+    await Bun.sleep(1000);
   }
 }
 

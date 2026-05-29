@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import pool from "../../src/database.js";
 
 async function initDb() {
-  await $`bunx node-pg-migrate up`.quiet();
+  await $`node-pg-migrate up`.quiet();
 
   const client = await pool.connect();
   try {
@@ -11,8 +11,14 @@ async function initDb() {
 
     // Nettoyage complet
     await client.query(
-      "TRUNCATE TABLE users, roles, permissions, role_permissions, teams, team_users, channels, channel_team_users, messages, documents, message_reaction_users, user_roles RESTART IDENTITY CASCADE",
+      "TRUNCATE TABLE organisations, users, roles, permissions, role_permissions, teams, team_users, channels, channel_team_users, messages, documents, message_reaction_users, user_roles RESTART IDENTITY CASCADE",
     );
+
+    // Création de l'organisation
+    const { rows: orgs } = await client.query(`
+      INSERT INTO organisations (nom) VALUES ('Test Org') RETURNING id
+    `);
+    const orgId = orgs[0].id;
 
     // Création des Rôles
     const { rows: roles } = await client.query(`
@@ -26,21 +32,23 @@ async function initDb() {
     const hash = await bcrypt.hash("password123", 10);
     const { rows: users } = await client.query(
       `
-      INSERT INTO users (firstname, lastname, email, username, password) VALUES 
-      ('John', 'Doe', 'john.doe@lime.app', 'johndoe', $1),
-      ('Jane', 'Doe', 'jane.doe@lime.app', 'janedoe', $1) RETURNING id, username
+      INSERT INTO users (firstname, lastname, email, username, password, org_id) VALUES 
+      ('John', 'Doe', 'john.doe@lime.app', 'johndoe', $1, $2),
+      ('Jane', 'Doe', 'jane.doe@lime.app', 'janedoe', $1, $2) RETURNING id, username
     `,
-      [hash],
+      [hash, orgId],
     );
     const johnId = users.find((u) => u.username === "johndoe").id;
     const janeId = users.find((u) => u.username === "janedoe").id;
 
     // Création de l'Équipe et du Canal
     const { rows: teams } = await client.query(
-      `INSERT INTO teams (name) VALUES ('Test Team') RETURNING id`,
+      `INSERT INTO teams (name, org_id) VALUES ('Test Team', $1) RETURNING id`,
+      [orgId]
     );
     const { rows: channels } = await client.query(
-      `INSERT INTO channels (name) VALUES ('général-test') RETURNING id`,
+      `INSERT INTO channels (name, org_id) VALUES ('général-test', $1) RETURNING id`,
+      [orgId]
     );
     const teamId = teams[0].id;
     const channelId = channels[0].id;
