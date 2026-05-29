@@ -1,0 +1,55 @@
+name: test
+
+on:
+  pull_request:
+    branches: ["master"]
+
+jobs:
+  e2e_tests:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .env
+        uses: aarcangeli/load-dotenv@v1
+        with:
+          filenames: |
+            ./chat-backend/.env.test
+      
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Docker Compose v2
+        uses: hoverkraft-tech/compose-action@latest
+        env:
+          POSTGRES_USER: $DB_USER
+          POSTGRES_PASSWORD: $DB_PASSWORD
+          POSTGRES_DB: $DB_NAME
+        with:
+          compose-file: "./compose.yml"
+
+      - name: Installation dependances bun
+        run: bun install --frozen-lockfile
+        working-directory: ./chat-backend 
+
+      - name: Lancer services et tests
+        run: |
+          # Démarre les services définis par compose.yml
+          docker compose up -d
+
+          # Attendre que Postgres soit prêt
+          until docker exec lime_postgres pg_isready -U postgres; do sleep 1; done
+
+          # Crée la DB de test
+          docker exec -i lime_postgres psql -U postgres -c "CREATE DATABASE IF NOT EXISTS chat_db_test;"
+
+          # Lancement des tests
+          
+          cd chat-backend && bun run test
+
+        working-directory: .

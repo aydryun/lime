@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { fetch } from "bun";
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = `http://localhost:${process.env.PORT}/api`;
 
 // api/login
 test("Identifiants invalides", async () => {
