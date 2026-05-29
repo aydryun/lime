@@ -122,7 +122,10 @@ async function start() {
     // (tenant isolation + pas de fuite inter-canaux au sein d'une même org).
     async function relayMessage(message: unknown) {
       const msg = message as { org_id?: number; channel_id?: number };
-      if (typeof msg.org_id !== "number" || typeof msg.channel_id !== "number") {
+      if (
+        typeof msg.org_id !== "number" ||
+        typeof msg.channel_id !== "number"
+      ) {
         return;
       }
       try {

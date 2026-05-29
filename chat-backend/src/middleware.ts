@@ -35,7 +35,10 @@ export function authenticate(
       orgId?: unknown;
     };
     // Validation runtime : un token antérieur au multi-tenant n'a pas d'orgId.
-    if (typeof payload.userId !== "number" || typeof payload.orgId !== "number") {
+    if (
+      typeof payload.userId !== "number" ||
+      typeof payload.orgId !== "number"
+    ) {
       res.status(401).json({ error: "Token invalide" });
       return;
     }
