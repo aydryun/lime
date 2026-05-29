@@ -46,7 +46,7 @@ jobs:
           until docker exec lime_postgres pg_isready -U postgres; do sleep 1; done
 
           # Crée la DB de test
-          docker exec -i lime_postgres psql -U postgres -c "CREATE DATABASE IF NOT EXISTS chat_db_test;"
+          docker exec -i lime_postgres psql -U postgres -c "CREATE DATABASE chat_db_test;"
 
           # Lancement des tests
           
