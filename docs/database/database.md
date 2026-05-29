@@ -4,12 +4,17 @@
 
 La base de données PostgreSQL est gérée via des migrations SQL (`chat-backend/migrations/`).
 
+L'application est **multi-tenant** : `organisations` est la **frontière d'isolation**. Chaque `user`, `team`, `channel`, `message` et `document` appartient à exactement une organisation (`org_id NOT NULL`). Les données ne traversent jamais une organisation.
+
 ```
+organisations ◄── org_id ── users / teams / channels / messages / documents
+     ▲                                  (frontière tenant : org_id NOT NULL)
+     │
 users ──────┬──── team_users ──── teams
             │                       │
             ├──── user_roles ───── roles ──── role_permissions ──── permissions
             │         │
-            │     (scope: team/channel)
+            │     (scope: org / team / channel — un seul à la fois)
             │
             ├──── messages ──────── channels
             │        │                 │
@@ -17,14 +22,23 @@ users ──────┬──── team_users ──── teams
             │        └── reactions     │
             │                          │
             └──── channel_team_users ──┘
-                    (team ou user)
+                    (team ou user, dans l'org)
 ```
 
 ## Tables
 
+### organisations
+
+Tenant racine. Chaque ressource métier appartient à une organisation.
+
+| Colonne | Type | Contraintes |
+|---|---|---|
+| id | SERIAL | PRIMARY KEY |
+| nom | VARCHAR(255) | NOT NULL |
+
 ### users
 
-Utilisateurs de l'application.
+Utilisateurs de l'application. Un utilisateur appartient à **une seule** organisation.
 
 | Colonne | Type | Contraintes |
 |---|---|---|
@@ -34,6 +48,7 @@ Utilisateurs de l'application.
 | email | VARCHAR(255) | UNIQUE, NOT NULL |
 | username | VARCHAR(255) | UNIQUE, NOT NULL |
 | password | VARCHAR(255) | NOT NULL (hash bcrypt) |
+| org_id | INTEGER | FK → organisations(id), NOT NULL |
 
 ### teams
 
@@ -43,6 +58,7 @@ Utilisateurs de l'application.
 |---|---|---|
 | id | SERIAL | PRIMARY KEY |
 | name | VARCHAR(255) | NOT NULL |
+| org_id | INTEGER | FK → organisations(id), NOT NULL |
 
 ### team_users
 
@@ -61,6 +77,7 @@ Canaux de discussion.
 |---|---|---|
 | id | SERIAL | PRIMARY KEY |
 | name | VARCHAR(255) | NOT NULL |
+| org_id | INTEGER | FK → organisations(id), NOT NULL |
 
 ### channel_team_users
 
@@ -91,8 +108,9 @@ Messages envoyés dans un channel.
 | is_updated | BOOLEAN | NOT NULL, DEFAULT FALSE |
 | is_pinned | BOOLEAN | NOT NULL, DEFAULT FALSE |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP |
+| org_id | INTEGER | FK → organisations(id), NOT NULL (dénormalisé depuis le canal) |
 
-**Index :** channel_id, user_id, created_at DESC
+**Index :** channel_id, user_id, created_at DESC, org_id
 
 ### documents
 
@@ -109,8 +127,9 @@ Fichiers attachés à un message.
 | file_name | VARCHAR(255) | NOT NULL |
 | file_size | INTEGER | nullable |
 | created_at | TIMESTAMP | NOT NULL, DEFAULT CURRENT_TIMESTAMP |
+| org_id | INTEGER | FK → organisations(id), NOT NULL (dénormalisé depuis le canal) |
 
-**Index :** channel_id, user_id, message_id
+**Index :** channel_id, user_id, message_id, org_id
 
 ### message_reaction_users
 
@@ -135,7 +154,11 @@ Un utilisateur ne peut mettre qu'une seule fois la même réaction sur un messag
 | is_admin | BOOLEAN | DEFAULT FALSE |
 | is_super_admin | BOOLEAN | DEFAULT FALSE |
 
-Rôles par défaut (seed) : **admin**, **moderator**, **member**
+Rôles par défaut (seed) :
+- Globaux : **admin**, **moderator**, **member**
+- Organisation : **org_owner**, **org_admin** (scope `org_id`)
+- Équipe : **team_owner**, **team_admin**, **team_member** (scope `team_id`)
+- Canal : **canal_owner**, **canal_admin**, **canal_member** (scope `channel_id`)
 
 ### permissions
 
@@ -168,7 +191,7 @@ Permissions par rôle (seed) :
 
 ### user_roles
 
-Attribution des rôles avec scope optionnel (team et/ou channel).
+Attribution des rôles avec scope optionnel (**org**, team **ou** channel).
 
 | Colonne | Type | Contraintes |
 |---|---|---|
@@ -177,8 +200,11 @@ Attribution des rôles avec scope optionnel (team et/ou channel).
 | role_id | INTEGER | FK → roles(id), NOT NULL |
 | team_id | INTEGER | FK → teams(id), nullable |
 | channel_id | INTEGER | FK → channels(id), nullable |
+| org_id | INTEGER | FK → organisations(id), nullable |
 
-**Index unique** sur `(user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0))` — empêche les doublons par scope.
+**Contraintes :**
+- `CHECK` — au plus un seul scope renseigné parmi `org_id`, `team_id`, `channel_id` (jamais deux à la fois).
+- **Index unique** sur `(user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0))` — empêche les doublons par scope.
 
 ## Commandes utiles
 
