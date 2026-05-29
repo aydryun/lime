@@ -233,22 +233,31 @@ export async function findChannelById(id: number): Promise<ChannelRow | null> {
   return result.rows[0] ?? null;
 }
 
-/** Creates a channel; creator becomes canal_owner. */
+/** Creates a channel in the caller's org; creator becomes canal_owner. */
 export async function createChannel(
   name: string,
   creatorId: number,
+  orgId: number,
 ): Promise<ChannelRow> {
   const ownerRoleId = await getCanalRoleId("canal_owner");
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+    // Le canal est créé dans l'org du JWT, après recoupement que le créateur
+    // appartient bien à cette org (évite tout désalignement JWT / users.org_id).
     const channel = await client.query(
       `INSERT INTO channels (name, org_id)
-       VALUES ($1, (SELECT org_id FROM users WHERE id = $2))
+       SELECT $1, $3
+       WHERE EXISTS (SELECT 1 FROM users WHERE id = $2 AND org_id = $3)
        RETURNING id, name`,
-      [name, creatorId],
+      [name, creatorId, orgId],
     );
-    const channelRow = channel.rows[0] as ChannelRow;
+    const channelRow = channel.rows[0] as ChannelRow | undefined;
+    if (!channelRow) {
+      throw new Error(
+        "Org mismatch : le créateur n'appartient pas à l'organisation demandée",
+      );
+    }
     await client.query(
       `INSERT INTO channel_team_users (channel_id, user_id)
        VALUES ($1, $2)

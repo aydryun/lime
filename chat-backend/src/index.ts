@@ -8,13 +8,13 @@ import swaggerUi from "swagger-ui-express";
 import type * as WebSocket from "ws";
 import authRouter, { TOKEN_COOKIE } from "./auth.js";
 import channelsRouter from "./channels.js";
+import { JWT_SECRET } from "./config.js";
+import { listChannelMembers } from "./database.js";
 import { connectRedis, subscribeToMessages } from "./redis.js";
 import swaggerDocument from "./swagger.js";
 import usersRouter from "./users.js";
 
 dotenv.config();
-
-const JWT_SECRET = process.env.JWT_SECRET || "changeme";
 
 const app = express();
 
@@ -31,8 +31,11 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 
-// Connected WebSocket clients, each tagged with its tenant (org) for scoped broadcast.
-const wsClients = new Map<WebSocket.WebSocket, number>();
+// Connected WebSocket clients, each tagged with its tenant (org) and user id.
+const wsClients = new Map<
+  WebSocket.WebSocket,
+  { orgId: number; userId: number }
+>();
 
 /** Extracts the JWT from the ws upgrade request (HttpOnly cookie or Bearer header). */
 function tokenFromRequest(req: Request): string | null {
@@ -58,11 +61,10 @@ async function start() {
     // Connect to Redis
     await connectRedis();
 
-    // Subscribe to Redis messages and broadcast to clients of the message's org only.
+    // Subscribe to Redis messages and relay them only to clients that are
+    // members of the message's channel (and thus its org).
     subscribeToMessages((message: unknown) => {
-      const orgId = (message as { org_id?: number })?.org_id;
-      if (typeof orgId !== "number") return; // sans org connue, on ne diffuse pas
-      broadcastToOrg(orgId, { type: "new_message", data: message });
+      void relayMessage(message);
     });
 
     // API docs
@@ -82,20 +84,27 @@ async function start() {
       "/ws",
       (ws: WebSocket.WebSocket, req: Request) => {
         const token = tokenFromRequest(req);
-        let orgId: number;
+        let userId: unknown;
+        let orgId: unknown;
         try {
           const payload = jwt.verify(token ?? "", JWT_SECRET) as {
-            userId: number;
-            orgId: number;
+            userId?: unknown;
+            orgId?: unknown;
           };
+          userId = payload.userId;
           orgId = payload.orgId;
         } catch {
           ws.close(1008, "Unauthorized");
           return;
         }
+        // Validation runtime : refuse un token sans userId/orgId valides.
+        if (typeof userId !== "number" || typeof orgId !== "number") {
+          ws.close(1008, "Unauthorized");
+          return;
+        }
 
         console.log(`🟢 Client connected via WebSocket (org ${orgId})`);
-        wsClients.set(ws, orgId);
+        wsClients.set(ws, { orgId, userId });
 
         ws.on("close", () => {
           console.log("🔴 Client disconnected");
@@ -109,15 +118,29 @@ async function start() {
       },
     );
 
-    // Broadcast only to clients belonging to the given org (tenant isolation).
-    function broadcastToOrg(orgId: number, message: unknown) {
-      const data = JSON.stringify(message);
-      wsClients.forEach((clientOrg, client) => {
-        if (clientOrg === orgId && client.readyState === 1) {
-          // OPEN
-          client.send(data);
-        }
-      });
+    // Relay a message only to connected clients that are members of its channel
+    // (tenant isolation + pas de fuite inter-canaux au sein d'une même org).
+    async function relayMessage(message: unknown) {
+      const msg = message as { org_id?: number; channel_id?: number };
+      if (typeof msg.org_id !== "number" || typeof msg.channel_id !== "number") {
+        return;
+      }
+      try {
+        const members = await listChannelMembers(msg.channel_id);
+        const memberIds = new Set<number>(members.map((m) => m.user_id));
+        const data = JSON.stringify({ type: "new_message", data: message });
+        wsClients.forEach((client, ws) => {
+          if (
+            client.orgId === msg.org_id &&
+            memberIds.has(client.userId) &&
+            ws.readyState === 1 // OPEN
+          ) {
+            ws.send(data);
+          }
+        });
+      } catch (err) {
+        console.error("WS relay failed:", err);
+      }
     }
 
     const PORT = process.env.CHAT_PORT || 3001;
