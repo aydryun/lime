@@ -1,7 +1,7 @@
 services:
 
   postgres:
-    image: postgres
+    image: postgres:17
     container_name: lime_postgres
     ports:
       - "5432:5432"
@@ -11,6 +11,8 @@ services:
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: chat_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
   redis:
     image: redis:latest
     container_name: lime_redis

@@ -146,7 +146,7 @@ async function start() {
       }
     }
 
-    const PORT = process.env.CHAT_PORT || 3001;
+    const PORT = process.env.PORT || 3001;
     app.listen(PORT, () => {
       console.log(`🚀 Server running on http://localhost:${PORT}`);
       console.log(`📡 WebSocket available at ws://localhost:${PORT}/ws`);
