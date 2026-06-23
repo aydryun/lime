@@ -6,30 +6,32 @@ on:
 
 jobs:
   e2e_tests:
+    name: Test — End2End
     runs-on: ubuntu-latest
 
     steps:
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
 
-      - name: Setup .env
-        uses: aarcangeli/load-dotenv@v1
+      - name: Chargement du .env.test 
+        uses: xom9ikk/dotenv@d0a56edc74279820eabbe34477511327e710d0de #v2.4.0
         with:
-          filenames: |
-            ./chat-backend/.env.test
+          path: ./chat-backend/
+          mode: test
+          load-mode: strict
       
       - name: Install bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 #V2.2.0
         with:
           bun-version: latest
 
       - name: Install Docker Compose v2
-        uses: hoverkraft-tech/compose-action@v2.6.0
+        uses: hoverkraft-tech/compose-action@11beaa1c2dae4e8ed7b1665aa074723b6cecb0e4 #V3.0.0
         env:
-          POSTGRES_USER: $DB_USER
-          POSTGRES_PASSWORD: $DB_PASSWORD
-          POSTGRES_DB: $DB_NAME
+          POSTGRES_USER: ${{ env.DB_USER }}
+          POSTGRES_PASSWORD: ${{ env.DB_PASSWORD }}
+          POSTGRES_DB: ${{ env.DB_NAME }}
         with:
           compose-file: "./compose.yml"
 
