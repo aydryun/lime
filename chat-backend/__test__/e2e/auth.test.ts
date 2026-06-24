@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { fetch } from "bun";
 
-const API_URL = "http://localhost:3001/api";
+const API_URL = `http://localhost:${process.env.PORT}/api`;
 
 // api/login
 test("Identifiants invalides", async () => {
@@ -11,7 +11,7 @@ test("Identifiants invalides", async () => {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      email: "lucas@lime.app",
+      email: "john.doe@lime.app",
       password: "mauvais_mdp",
     }),
   });
@@ -25,7 +25,7 @@ test("Mot de passe manquant", async () => {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      email: "lucas@lime.app",
+      email: "john.doe@lime.app",
     }),
   });
   expect(response.status).toBe(400);
@@ -38,7 +38,7 @@ test("Succès de connexion", async () => {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      email: "lucas@lime.app",
+      email: "john.doe@lime.app",
       password: "password123",
     }),
   });
@@ -60,7 +60,7 @@ test("Deconnexion", async () => {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      email: "lucas@lime.app",
+      email: "john.doe@lime.app",
       password: "password123",
     }),
   });
