@@ -1,12 +1,21 @@
 import { createClient } from "redis";
 
-const redisClient = createClient({
-  host: process.env.REDIS_HOST || "localhost",
-  port: parseInt(process.env.REDIS_PORT || "6379", 10),
-  socket: {
-    reconnectStrategy: (retries: number) => Math.min(retries * 50, 500),
-  },
-});
+const reconnectStrategy = (retries: number) => Math.min(retries * 50, 500);
+
+// REDIS_URL prime (BDD managée, ex. rediss://… sur Render) ; sinon host/port local.
+// NB : avec redis v4, host/port doivent être DANS `socket` (ignorés au niveau racine).
+const redisClient = process.env.REDIS_URL
+  ? createClient({
+      url: process.env.REDIS_URL,
+      socket: { reconnectStrategy },
+    })
+  : createClient({
+      socket: {
+        host: process.env.REDIS_HOST || "localhost",
+        port: parseInt(process.env.REDIS_PORT || "6379", 10),
+        reconnectStrategy,
+      },
+    });
 
 redisClient.on("error", (err) => console.error("Redis error:", err));
 redisClient.on("connect", () => console.log("✓ Connected to Redis"));

@@ -2,13 +2,23 @@ import pkg from "pg";
 
 const { Pool } = pkg;
 
-const pool = new Pool({
-  user: process.env.DB_USER || "postgres",
-  password: process.env.DB_PASSWORD || "postgres",
-  host: process.env.DB_HOST || "localhost",
-  port: parseInt(process.env.DB_PORT || "5432", 10),
-  database: process.env.DB_NAME || "chat_db",
-});
+// En production (Render), DB_SSL=true active le TLS exigé par les BDD managées.
+const ssl =
+  process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : false;
+
+// DATABASE_URL prime (BDD managée) ; sinon variables discrètes pour le dev local.
+const pool = new Pool(
+  process.env.DATABASE_URL
+    ? { connectionString: process.env.DATABASE_URL, ssl }
+    : {
+        user: process.env.DB_USER || "postgres",
+        password: process.env.DB_PASSWORD || "postgres",
+        host: process.env.DB_HOST || "localhost",
+        port: parseInt(process.env.DB_PORT || "5432", 10),
+        database: process.env.DB_NAME || "chat_db",
+        ssl,
+      },
+);
 
 /** Returns the full user row matching the given email, or null. */
 export async function findUserByEmail(email: string) {
