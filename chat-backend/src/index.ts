@@ -10,8 +10,10 @@ import authRouter, { TOKEN_COOKIE } from "./auth.js";
 import channelsRouter from "./channels.js";
 import { JWT_SECRET } from "./config.js";
 import { listChannelMembers } from "./database.js";
+import organisationsRouter from "./organisations.js";
 import { connectRedis, subscribeToMessages } from "./redis.js";
 import swaggerDocument from "./swagger.js";
+import teamsRouter from "./teams.js";
 import usersRouter from "./users.js";
 
 dotenv.config();
@@ -78,6 +80,12 @@ async function start() {
 
     // Channel + per-channel message routes
     app.use("/api/channels", channelsRouter);
+
+    // Organisation (infos entreprise + membres)
+    app.use("/api/org", organisationsRouter);
+
+    // Teams (CRUD + membres)
+    app.use("/api/teams", teamsRouter);
 
     // WebSocket endpoint — authenticated relay, scoped to the client's org.
     (appWithWs as unknown as Instance["app"]).ws(
