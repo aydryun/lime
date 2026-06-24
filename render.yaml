@@ -5,7 +5,6 @@
 databases:
   - name: lime-postgres
     databaseName: chat_db
-    user: postgres
     plan: free
 
 services:
