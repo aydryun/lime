@@ -25,7 +25,9 @@ services:
       # (= NEON_LINK, idéalement le pooler "-pooler", avec sslmode=require).
       - key: DATABASE_URL
         sync: false
-      # Neon exige TLS : conserver DB_SSL=true (sinon le pool ouvre en clair).
+      # Neon exige TLS : DB_SSL=true active le chiffrement AVEC vérification du
+      # certificat (cf. database.ts). Obligatoire ici (DATABASE_URL est requis
+      # en prod, le backend refuse de démarrer sans).
       - key: DB_SSL
         value: "true"
       - key: REDIS_URL
