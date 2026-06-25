@@ -3,6 +3,7 @@
 import {
   ArrowLeft,
   Bell,
+  Building2,
   Citrus,
   Monitor,
   Moon,
@@ -10,10 +11,13 @@ import {
   Shield,
   Sun,
   User,
+  Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { type FormEvent, useEffect, useState } from "react";
+import { OrganisationSection } from "@/components/settings/organisation-section";
+import { TeamsSection } from "@/components/settings/teams-section";
 import { Button } from "@/components/ui/button";
 import { apiUrl } from "@/lib/api";
 import { type AuthUser, getStoredUser, setStoredUser } from "@/lib/auth";
@@ -27,10 +31,18 @@ import {
   setStoredNotifications,
 } from "@/lib/preferences";
 
-type Section = "account" | "appearance" | "notifications" | "privacy";
+type Section =
+  | "account"
+  | "organisation"
+  | "teams"
+  | "appearance"
+  | "notifications"
+  | "privacy";
 
 const SECTIONS: { id: Section; label: string; icon: typeof User }[] = [
   { id: "account", label: "Compte", icon: User },
+  { id: "organisation", label: "Organisation", icon: Building2 },
+  { id: "teams", label: "Équipes", icon: Users },
   { id: "appearance", label: "Personnalisation", icon: Palette },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "privacy", label: "Confidentialité", icon: Shield },
@@ -86,6 +98,8 @@ export default function SettingsPage() {
           {section === "account" && (
             <AccountSection user={user} onUpdate={setUser} />
           )}
+          {section === "organisation" && <OrganisationSection />}
+          {section === "teams" && <TeamsSection />}
           {section === "appearance" && <AppearanceSection />}
           {section === "notifications" && <NotificationsSection />}
           {section === "privacy" && <PrivacySection />}

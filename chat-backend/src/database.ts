@@ -623,4 +623,589 @@ export async function listNonMembers(
   return result.rows;
 }
 
+// ---------------------------------------------------------------------------
+// Organisations
+// ---------------------------------------------------------------------------
+
+export interface OrganisationRow {
+  id: number;
+  nom: string;
+  raison_sociale: string | null;
+  siren: string | null;
+  siret: string | null;
+  tva_intracommunautaire: string | null;
+  email: string | null;
+  telephone: string | null;
+  adresse: string | null;
+  code_postal: string | null;
+  ville: string | null;
+  pays: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Champs de l'org modifiables via PATCH /api/org (nom inclus, hors identifiants techniques). */
+export const ORG_UPDATABLE_FIELDS = [
+  "nom",
+  "raison_sociale",
+  "siren",
+  "siret",
+  "tva_intracommunautaire",
+  "email",
+  "telephone",
+  "adresse",
+  "code_postal",
+  "ville",
+  "pays",
+] as const;
+
+export type OrgUpdatableField = (typeof ORG_UPDATABLE_FIELDS)[number];
+
+/** Returns the organisation row by id, or null. */
+export async function getOrganisationById(
+  orgId: number,
+): Promise<OrganisationRow | null> {
+  const result = await pool.query("SELECT * FROM organisations WHERE id = $1", [
+    orgId,
+  ]);
+  return result.rows[0] ?? null;
+}
+
+/** Updates the provided org fields (whitelisted) and bumps updated_at. Returns the updated row or null. */
+export async function updateOrganisation(
+  orgId: number,
+  fields: Partial<Record<OrgUpdatableField, string | null>>,
+): Promise<OrganisationRow | null> {
+  const keys = ORG_UPDATABLE_FIELDS.filter((k) => fields[k] !== undefined);
+  const setClauses = keys.map((k, i) => `${k} = $${i + 2}`);
+  setClauses.push("updated_at = CURRENT_TIMESTAMP");
+  const values = keys.map((k) => fields[k]);
+  const result = await pool.query(
+    `UPDATE organisations SET ${setClauses.join(", ")} WHERE id = $1 RETURNING *`,
+    [orgId, ...values],
+  );
+  return result.rows[0] ?? null;
+}
+
+/** Rôles applicables au niveau organisation (scope org_id dans user_roles). */
+export type OrgRole = "org_owner" | "org_admin" | "member";
+const ORG_ROLE_NAMES: OrgRole[] = ["org_owner", "org_admin", "member"];
+
+/** Returns the caller's org-scoped role (highest priority), or null if none. */
+export async function getUserOrgRole(
+  userId: number,
+  orgId: number,
+): Promise<OrgRole | null> {
+  const result = await pool.query(
+    `SELECT r.name FROM user_roles ur
+     JOIN roles r ON r.id = ur.role_id
+     WHERE ur.user_id = $1 AND ur.org_id = $2 AND r.name = ANY($3::text[])
+     ORDER BY CASE r.name
+       WHEN 'org_owner' THEN 0
+       WHEN 'org_admin' THEN 1
+       ELSE 2 END
+     LIMIT 1`,
+    [userId, orgId, ORG_ROLE_NAMES],
+  );
+  return (result.rows[0]?.name as OrgRole | undefined) ?? null;
+}
+
+export type PermissionAction = "GET" | "CREATE" | "UPDATE" | "DELETE";
+
+export interface PermissionScope {
+  orgId: number;
+  teamId?: number | null;
+  channelId?: number | null;
+}
+
+/**
+ * RBAC chokepoint : true si l'un des rôles de l'utilisateur — pertinent pour le
+ * scope demandé (org, ou team/channel ciblés) — accorde la permission
+ * (category, action) via role_permissions. Un rôle org-scopé couvre tout l'org,
+ * un rôle team/canal-scopé ne couvre que sa team / son canal.
+ */
+export async function userHasPermission(
+  userId: number,
+  category: string,
+  action: PermissionAction,
+  scope: PermissionScope,
+): Promise<boolean> {
+  const result = await pool.query(
+    `SELECT 1
+     FROM user_roles ur
+     JOIN role_permissions rp ON rp.role_id = ur.role_id
+     JOIN permissions p ON p.id = rp.permission_id
+     WHERE ur.user_id = $1
+       AND p.category = $2
+       AND p.action = $3::permission_action
+       AND (
+         ur.org_id = $4
+         OR ($5::int IS NOT NULL AND ur.team_id = $5)
+         OR ($6::int IS NOT NULL AND ur.channel_id = $6)
+       )
+     LIMIT 1`,
+    [
+      userId,
+      category,
+      action,
+      scope.orgId,
+      scope.teamId ?? null,
+      scope.channelId ?? null,
+    ],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export interface OrgMember {
+  id: number;
+  firstname: string;
+  lastname: string;
+  email: string;
+  username: string;
+  role: OrgRole | null;
+  activated: boolean;
+}
+
+/** Lists the users of an organisation with their org-scoped role and activation status. */
+export async function listOrgMembers(orgId: number): Promise<OrgMember[]> {
+  const result = await pool.query(
+    `SELECT u.id, u.firstname, u.lastname, u.email, u.username,
+       (u.activated_at IS NOT NULL) AS activated,
+       (SELECT r.name FROM user_roles ur
+         JOIN roles r ON r.id = ur.role_id
+         WHERE ur.user_id = u.id AND ur.org_id = $1 AND r.name = ANY($2::text[])
+         ORDER BY CASE r.name
+           WHEN 'org_owner' THEN 0
+           WHEN 'org_admin' THEN 1
+           ELSE 2 END
+         LIMIT 1) AS role
+     FROM users u
+     WHERE u.org_id = $1
+     ORDER BY u.id ASC`,
+    [orgId, ORG_ROLE_NAMES],
+  );
+  return result.rows;
+}
+
+/** Postgres unique-violation error code. */
+const PG_UNIQUE_VIOLATION = "23505";
+
+export class DuplicateError extends Error {
+  constructor(public field: "email" | "username") {
+    super(`Duplicate ${field}`);
+    this.name = "DuplicateError";
+  }
+}
+
+/**
+ * Creates a new member inside an existing org with the given org role, atomically.
+ * The password hash is provided by the caller (random until the user activates).
+ * Throws DuplicateError on email/username conflict.
+ */
+export async function createOrgMember(args: {
+  orgId: number;
+  firstname: string;
+  lastname: string;
+  email: string;
+  username: string;
+  hashedPassword: string;
+  role: "org_admin" | "member";
+}): Promise<{
+  id: number;
+  firstname: string;
+  lastname: string;
+  email: string;
+  username: string;
+  org_id: number;
+}> {
+  const roleId = await getRoleId(args.role);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    // activated_at = NULL : le membre n'est pas encore actif tant qu'il n'a pas
+    // défini son mot de passe via l'email d'invitation.
+    const user = await client.query(
+      `INSERT INTO users (firstname, lastname, email, username, password, org_id, activated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, NULL)
+       RETURNING id, firstname, lastname, email, username, org_id`,
+      [
+        args.firstname,
+        args.lastname,
+        args.email,
+        args.username,
+        args.hashedPassword,
+        args.orgId,
+      ],
+    );
+    await client.query(
+      `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)`,
+      [user.rows[0].id, roleId, args.orgId],
+    );
+    await client.query("COMMIT");
+    return user.rows[0];
+  } catch (err) {
+    await client.query("ROLLBACK");
+    if ((err as { code?: string }).code === PG_UNIQUE_VIOLATION) {
+      const detail = String((err as { detail?: string }).detail ?? "");
+      throw new DuplicateError(
+        detail.includes("username") ? "username" : "email",
+      );
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/** Sets the password and marks the account active (used by invitation activation). */
+export async function activateUser(
+  userId: number,
+  hashedPassword: string,
+): Promise<boolean> {
+  const result = await pool.query(
+    "UPDATE users SET password = $1, activated_at = CURRENT_TIMESTAMP WHERE id = $2",
+    [hashedPassword, userId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/** Changes a member's org role (org_admin or member). Never touches org_owner. Returns false if member not found. */
+export async function setOrgMemberRole(
+  userId: number,
+  orgId: number,
+  role: "org_admin" | "member",
+): Promise<boolean> {
+  const roleId = await getRoleId(role);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const inOrg = await client.query(
+      "SELECT 1 FROM users WHERE id = $1 AND org_id = $2",
+      [userId, orgId],
+    );
+    if (inOrg.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+    await client.query(
+      `DELETE FROM user_roles ur
+       USING roles r
+       WHERE ur.role_id = r.id AND ur.user_id = $1 AND ur.org_id = $2
+         AND r.name = ANY($3::text[])`,
+      [userId, orgId, ORG_ROLE_NAMES],
+    );
+    await client.query(
+      `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)`,
+      [userId, roleId, orgId],
+    );
+    await client.query("COMMIT");
+    return true;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export type RemoveMemberResult = "removed" | "not_found" | "has_content";
+
+/**
+ * Removes a member from the org (= deletes the user, one user/one org).
+ * Refuses if the user still owns messages/documents (FK would break) — those
+ * must be handled first. Cleans up role/team/channel associations otherwise.
+ */
+export async function removeOrgMember(
+  userId: number,
+  orgId: number,
+): Promise<RemoveMemberResult> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const inOrg = await client.query(
+      "SELECT 1 FROM users WHERE id = $1 AND org_id = $2",
+      [userId, orgId],
+    );
+    if (inOrg.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return "not_found";
+    }
+    const content = await client.query(
+      `SELECT 1 FROM messages WHERE user_id = $1
+       UNION ALL SELECT 1 FROM documents WHERE user_id = $1 LIMIT 1`,
+      [userId],
+    );
+    if ((content.rowCount ?? 0) > 0) {
+      await client.query("ROLLBACK");
+      return "has_content";
+    }
+    await client.query("DELETE FROM user_roles WHERE user_id = $1", [userId]);
+    await client.query("DELETE FROM team_users WHERE user_id = $1", [userId]);
+    await client.query("DELETE FROM channel_team_users WHERE user_id = $1", [
+      userId,
+    ]);
+    await client.query("DELETE FROM users WHERE id = $1", [userId]);
+    await client.query("COMMIT");
+    return "removed";
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Teams
+// ---------------------------------------------------------------------------
+
+export type TeamRole = "team_owner" | "team_admin" | "team_member";
+const TEAM_ROLE_NAMES: TeamRole[] = ["team_owner", "team_admin", "team_member"];
+
+export interface TeamRow {
+  id: number;
+  name: string;
+  org_id: number;
+}
+
+/** Lists the teams of an org with their member count. */
+export async function listTeams(
+  orgId: number,
+): Promise<Array<TeamRow & { member_count: number }>> {
+  const result = await pool.query(
+    `SELECT t.id, t.name, t.org_id,
+       (SELECT COUNT(*)::int FROM team_users tu WHERE tu.team_id = t.id) AS member_count
+     FROM teams t
+     WHERE t.org_id = $1
+     ORDER BY t.id ASC`,
+    [orgId],
+  );
+  return result.rows;
+}
+
+/** Returns a team row scoped to the org, or null. */
+export async function getTeamById(
+  teamId: number,
+  orgId: number,
+): Promise<TeamRow | null> {
+  const result = await pool.query(
+    "SELECT id, name, org_id FROM teams WHERE id = $1 AND org_id = $2",
+    [teamId, orgId],
+  );
+  return result.rows[0] ?? null;
+}
+
+/** Creates a team in the org; the creator becomes team_owner. */
+export async function createTeam(
+  orgId: number,
+  name: string,
+  creatorId: number,
+): Promise<TeamRow> {
+  const ownerRoleId = await getRoleId("team_owner");
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const team = await client.query(
+      `INSERT INTO teams (name, org_id)
+       SELECT $1, $3
+       WHERE EXISTS (SELECT 1 FROM users WHERE id = $2 AND org_id = $3)
+       RETURNING id, name, org_id`,
+      [name, creatorId, orgId],
+    );
+    const teamRow = team.rows[0] as TeamRow | undefined;
+    if (!teamRow) {
+      throw new Error(
+        "Org mismatch : le créateur n'appartient pas à l'organisation demandée",
+      );
+    }
+    await client.query(
+      `INSERT INTO team_users (team_id, user_id) VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [teamRow.id, creatorId],
+    );
+    await client.query(
+      `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)`,
+      [creatorId, ownerRoleId, teamRow.id],
+    );
+    await client.query("COMMIT");
+    return teamRow;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/** Renames a team within the org; returns the updated row or null. */
+export async function renameTeam(
+  teamId: number,
+  orgId: number,
+  name: string,
+): Promise<TeamRow | null> {
+  const result = await pool.query(
+    `UPDATE teams SET name = $1 WHERE id = $2 AND org_id = $3
+     RETURNING id, name, org_id`,
+    [name, teamId, orgId],
+  );
+  return result.rows[0] ?? null;
+}
+
+/** Deletes a team and its memberships/role rows. Returns false if not found in org. */
+export async function deleteTeam(
+  teamId: number,
+  orgId: number,
+): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const exists = await client.query(
+      "SELECT 1 FROM teams WHERE id = $1 AND org_id = $2",
+      [teamId, orgId],
+    );
+    if (exists.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return false;
+    }
+    await client.query("DELETE FROM user_roles WHERE team_id = $1", [teamId]);
+    await client.query("DELETE FROM team_users WHERE team_id = $1", [teamId]);
+    await client.query("DELETE FROM channel_team_users WHERE team_id = $1", [
+      teamId,
+    ]);
+    await client.query("DELETE FROM teams WHERE id = $1", [teamId]);
+    await client.query("COMMIT");
+    return true;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/** Returns the caller's team-scoped role, or null if not a member. */
+export async function getUserTeamRole(
+  userId: number,
+  teamId: number,
+): Promise<TeamRole | null> {
+  const result = await pool.query(
+    `SELECT r.name FROM user_roles ur
+     JOIN roles r ON r.id = ur.role_id
+     WHERE ur.user_id = $1 AND ur.team_id = $2 AND r.name = ANY($3::text[])
+     ORDER BY CASE r.name
+       WHEN 'team_owner' THEN 0
+       WHEN 'team_admin' THEN 1
+       ELSE 2 END
+     LIMIT 1`,
+    [userId, teamId, TEAM_ROLE_NAMES],
+  );
+  return (result.rows[0]?.name as TeamRole | undefined) ?? null;
+}
+
+export interface TeamMember {
+  user_id: number;
+  username: string;
+  firstname: string;
+  lastname: string;
+  role: TeamRole;
+}
+
+/** Lists the members of a team with their team role (default team_member). */
+export async function listTeamMembers(teamId: number): Promise<TeamMember[]> {
+  const result = await pool.query(
+    `SELECT u.id AS user_id, u.username, u.firstname, u.lastname,
+       COALESCE(
+         (SELECT r.name FROM user_roles ur
+           JOIN roles r ON r.id = ur.role_id
+           WHERE ur.user_id = u.id AND ur.team_id = $1 AND r.name = ANY($2::text[])
+           ORDER BY CASE r.name
+             WHEN 'team_owner' THEN 0
+             WHEN 'team_admin' THEN 1
+             ELSE 2 END
+           LIMIT 1),
+         'team_member'
+       ) AS role
+     FROM team_users tu
+     JOIN users u ON u.id = tu.user_id
+     WHERE tu.team_id = $1
+     ORDER BY u.id ASC`,
+    [teamId, TEAM_ROLE_NAMES],
+  );
+  return result.rows;
+}
+
+export type AddTeamMemberResult = "added" | "not_in_org" | "already_member";
+
+/** Adds a user (must belong to the org) to a team with the given role. */
+export async function addTeamMember(
+  teamId: number,
+  orgId: number,
+  userId: number,
+  role: "team_admin" | "team_member",
+): Promise<AddTeamMemberResult> {
+  const roleId = await getRoleId(role);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const inOrg = await client.query(
+      "SELECT 1 FROM users WHERE id = $1 AND org_id = $2",
+      [userId, orgId],
+    );
+    if (inOrg.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return "not_in_org";
+    }
+    const existing = await client.query(
+      "SELECT 1 FROM team_users WHERE team_id = $1 AND user_id = $2",
+      [teamId, userId],
+    );
+    if ((existing.rowCount ?? 0) > 0) {
+      await client.query("ROLLBACK");
+      return "already_member";
+    }
+    await client.query(
+      "INSERT INTO team_users (team_id, user_id) VALUES ($1, $2)",
+      [teamId, userId],
+    );
+    await client.query(
+      `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)
+       ON CONFLICT DO NOTHING`,
+      [userId, roleId, teamId],
+    );
+    await client.query("COMMIT");
+    return "added";
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/** Removes a user from a team (membership + team-scoped roles). Returns false if not a member. */
+export async function removeTeamMember(
+  teamId: number,
+  userId: number,
+): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      "DELETE FROM team_users WHERE team_id = $1 AND user_id = $2",
+      [teamId, userId],
+    );
+    await client.query(
+      "DELETE FROM user_roles WHERE team_id = $1 AND user_id = $2",
+      [teamId, userId],
+    );
+    await client.query("COMMIT");
+    return (result.rowCount ?? 0) > 0;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export default pool;

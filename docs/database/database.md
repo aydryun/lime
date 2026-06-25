@@ -34,7 +34,21 @@ Tenant racine. Chaque ressource métier appartient à une organisation.
 | Colonne | Type | Contraintes |
 |---|---|---|
 | id | SERIAL | PRIMARY KEY |
-| nom | VARCHAR(255) | NOT NULL |
+| nom | VARCHAR(255) | NOT NULL (nom d'affichage) |
+| raison_sociale | VARCHAR(255) | nullable (nom légal) |
+| siren | VARCHAR(9) | nullable, UNIQUE si renseigné (entité légale) |
+| siret | VARCHAR(14) | nullable (établissement) |
+| tva_intracommunautaire | VARCHAR(13) | nullable |
+| email | VARCHAR(255) | nullable, UNIQUE si renseigné (contact) |
+| telephone | VARCHAR(32) | nullable |
+| adresse | VARCHAR(255) | nullable |
+| code_postal | VARCHAR(16) | nullable |
+| ville | VARCHAR(255) | nullable |
+| pays | VARCHAR(255) | nullable |
+| created_at | TIMESTAMP | NOT NULL, DEFAULT NOW() |
+| updated_at | TIMESTAMP | NOT NULL, DEFAULT NOW() |
+
+Le **propriétaire** d'une organisation n'est pas stocké ici : c'est l'utilisateur portant le rôle `org_owner` scopé sur l'org (table `user_roles`). Pas de FK circulaire org ↔ user.
 
 ### users
 
@@ -45,10 +59,13 @@ Utilisateurs de l'application. Un utilisateur appartient à **une seule** organi
 | id | SERIAL | PRIMARY KEY |
 | firstname | VARCHAR(255) | NOT NULL |
 | lastname | VARCHAR(255) | NOT NULL |
-| email | VARCHAR(255) | UNIQUE, NOT NULL |
-| username | VARCHAR(255) | UNIQUE, NOT NULL |
+| email | VARCHAR(255) | UNIQUE global, NOT NULL (login / cible d'invitation) |
+| username | VARCHAR(255) | NOT NULL, UNIQUE **par org** (`(org_id, username)`) |
 | password | VARCHAR(255) | NOT NULL (hash bcrypt) |
 | org_id | INTEGER | FK → organisations(id), NOT NULL |
+| activated_at | TIMESTAMP | DEFAULT NOW(), NULL tant que le membre invité n'a pas activé son compte |
+
+Un membre invité est créé avec `activated_at = NULL` et un mot de passe aléatoire ; il l'active via le lien reçu par email (`POST /api/auth/activate`). Le login refuse un compte non activé.
 
 ### teams
 
@@ -150,7 +167,7 @@ Un utilisateur ne peut mettre qu'une seule fois la même réaction sur un messag
 | Colonne | Type | Contraintes |
 |---|---|---|
 | id | SERIAL | PRIMARY KEY |
-| name | VARCHAR(255) | NOT NULL |
+| name | VARCHAR(255) | NOT NULL, UNIQUE (`roles_name_unique`) |
 | is_admin | BOOLEAN | DEFAULT FALSE |
 | is_super_admin | BOOLEAN | DEFAULT FALSE |
 
@@ -169,19 +186,34 @@ Rôles par défaut (seed) :
 | action | permission_action | DEFAULT 'GET' |
 
 Type enum `permission_action` : `GET`, `CREATE`, `UPDATE`, `DELETE`
+Unicité `(category, action)` (`permissions_category_action_unique`, migration 019).
 
-Catégories existantes : `message`, `channel`, `team`
+Catégories : `message`, `channel`, `team`, `org`, `member` (les deux dernières ajoutées en migration 019).
 
 ### role_permissions
 
-Association rôle ↔ permission.
+Association rôle ↔ permission. **Effectivement appliqué** par le code via
+`userHasPermission(userId, category, action, scope)` : un rôle org-scopé couvre
+toute l'org, un rôle team/canal-scopé ne couvre que sa team / son canal.
 
 | Colonne | Type | Contraintes |
 |---|---|---|
 | role_id | INTEGER | FK → roles(id), PK |
 | permission_id | INTEGER | FK → permissions(id), PK |
 
-Permissions par rôle (seed) :
+Seed (migration 019), au-delà des rôles génériques de démo :
+
+| Rôle | Permissions |
+|---|---|
+| org_owner / org_admin | toutes catégories, toutes actions |
+| team_owner | team GET/UPDATE/DELETE |
+| team_admin | team GET/UPDATE |
+| team_member | team GET |
+| canal_owner | channel GET/UPDATE/DELETE, message GET/CREATE/UPDATE/DELETE |
+| canal_admin | channel GET/UPDATE, message GET/CREATE/UPDATE/DELETE |
+| canal_member | channel GET, message GET/CREATE |
+
+Rôles génériques de démo (seed applicatif) :
 
 | Rôle | GET | CREATE | UPDATE | DELETE |
 |---|---|---|---|---|
