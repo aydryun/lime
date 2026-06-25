@@ -1,17 +1,15 @@
-# Blueprint Render — 4 ressources : Postgres, Redis (Key Value), backend, frontend.
+# Blueprint Render — 3 ressources : Redis (Key Value), backend, frontend.
+# La base Postgres est externe (Neon) : DATABASE_URL est renseignée à la main
+# dans le dashboard (cf. plus bas). Les migrations s'appliquent au démarrage
+# du conteneur (cf. CMD du Dockerfile backend : migrate:deploy && start).
 # Déploiement : Render Dashboard → New → Blueprint → pointer ce dépôt.
-# NB : free Postgres expire après ~30 jours ; passer en payant pour de la prod.
-
-databases:
-  - name: lime-postgres
-    databaseName: chat_db
-    plan: free
 
 services:
   # --- Redis (pub/sub des messages) ---
   - type: redis
     name: lime-redis
     plan: free
+    region: frankfurt # hébergement Europe (UE)
     ipAllowList: [] # connexions internes uniquement
 
   # --- Backend (Bun + Express + WebSocket) ---
@@ -21,11 +19,13 @@ services:
     rootDir: chat-backend
     dockerfilePath: ./Dockerfile
     plan: free
+    region: frankfurt # hébergement Europe (UE)
     envVars:
+      # Base Postgres externe (Neon). Coller la connection string Neon
+      # (= NEON_LINK, idéalement le pooler "-pooler", avec sslmode=require).
       - key: DATABASE_URL
-        fromDatabase:
-          name: lime-postgres
-          property: connectionString
+        sync: false
+      # Neon exige TLS : conserver DB_SSL=true (sinon le pool ouvre en clair).
       - key: DB_SSL
         value: "true"
       - key: REDIS_URL
@@ -57,6 +57,7 @@ services:
     rootDir: chat-client
     dockerfilePath: ./Dockerfile
     plan: free
+    region: frankfurt # hébergement Europe (UE)
     envVars:
       # URL HTTPS du backend — inlinée au BUILD (cf. ARG dans le Dockerfile).
       # Coller l'URL de lime-backend, puis redéployer pour rebâtir le bundle.
