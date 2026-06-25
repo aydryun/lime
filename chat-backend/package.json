@@ -14,6 +14,7 @@
     "test": "BUN_ENV=test bun __test__/run.ts",
     "seed": "bun seed.ts",
     "migrate:up": "node-pg-migrate --envPath ../.env up",
+    "migrate:deploy": "bunx --bun node-pg-migrate up",
     "migrate:down": "node-pg-migrate --envPath ../.env down",
     "migrate:create": "node-pg-migrate create"
   },

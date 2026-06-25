@@ -1,0 +1,64 @@
+# Blueprint Render — 4 ressources : Postgres, Redis (Key Value), backend, frontend.
+# Déploiement : Render Dashboard → New → Blueprint → pointer ce dépôt.
+# NB : free Postgres expire après ~30 jours ; passer en payant pour de la prod.
+
+databases:
+  - name: lime-postgres
+    databaseName: chat_db
+    plan: free
+
+services:
+  # --- Redis (pub/sub des messages) ---
+  - type: redis
+    name: lime-redis
+    plan: free
+    ipAllowList: [] # connexions internes uniquement
+
+  # --- Backend (Bun + Express + WebSocket) ---
+  - type: web
+    name: lime-backend
+    runtime: docker
+    rootDir: chat-backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: lime-postgres
+          property: connectionString
+      - key: DB_SSL
+        value: "true"
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: lime-redis
+          property: connectionString
+      - key: CHAT_PORT
+        value: "3001"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MAIL_FROM
+        value: hello@demomailtrap.co
+      - key: MAIL_FROM_NAME
+        value: Lime
+      # À renseigner manuellement (secret + URL connue après 1er déploiement) :
+      - key: MAILTRAP_API_TOKEN
+        sync: false
+      - key: MAILTRAP_INBOX_ID
+        sync: false
+      # URL HTTPS du frontend (CORS) — coller après le 1er déploiement du front.
+      - key: CLIENT_ORIGIN
+        sync: false
+
+  # --- Frontend (Next.js) ---
+  - type: web
+    name: lime-frontend
+    runtime: docker
+    rootDir: chat-client
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      # URL HTTPS du backend — inlinée au BUILD (cf. ARG dans le Dockerfile).
+      # Coller l'URL de lime-backend, puis redéployer pour rebâtir le bundle.
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
