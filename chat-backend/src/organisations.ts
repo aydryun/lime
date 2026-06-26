@@ -21,12 +21,12 @@ import { type AuthRequest, authenticate } from "./middleware.js";
 
 const router = Router();
 
-function parseIdParam(value: string): number | null {
+export function parseIdParam(value: string): number | null {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
-function cleanString(value: unknown, maxLength: number): string | null {
+export function cleanString(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (trimmed.length === 0 || trimmed.length > maxLength) return null;
@@ -51,7 +51,7 @@ function authContext(
  * RBAC : exige la permission (category, action) à l'échelle de l'org.
  * Envoie 401/403 et renvoie null si refusé.
  */
-async function requirePerm(
+export async function requirePerm(
   req: AuthRequest,
   res: import("express").Response,
   category: string,
