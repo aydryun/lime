@@ -1,4 +1,7 @@
 const USER_STORAGE_KEY = "chat_user";
+const TOKEN_STORAGE_KEY = "chat_token";
+/** Non-HttpOnly flag cookie read by the Next proxy middleware to gate routes. */
+const AUTH_FLAG_COOKIE = "chat_auth";
 
 /** Public profile of the authenticated user (no credentials). */
 export type AuthUser = {
@@ -29,6 +32,43 @@ export function setStoredUser(user: AuthUser): void {
   } catch (err) {
     console.warn("Failed to persist user to localStorage", err);
   }
+}
+
+/**
+ * Persists the JWT in localStorage and raises a non-HttpOnly flag cookie on the
+ * front domain. The flag lets the Next proxy middleware (which only sees cookies,
+ * not localStorage) gate routes; the JWT itself never travels as a cross-site
+ * cookie — it is sent as an `Authorization: Bearer` header on each API call.
+ */
+export function setStoredToken(token: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } catch (err) {
+    console.warn("Failed to persist token to localStorage", err);
+  }
+  document.cookie = `${AUTH_FLAG_COOKIE}=1; path=/; max-age=86400; samesite=lax`;
+}
+
+/** Reads the persisted JWT, or null if logged out. */
+export function getStoredToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Removes the persisted JWT and clears the route-gating flag cookie. */
+export function clearStoredToken(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch (err) {
+    console.warn("Failed to clear token", err);
+  }
+  document.cookie = `${AUTH_FLAG_COOKIE}=; path=/; max-age=0; samesite=lax`;
 }
 
 /** Reads the persisted user profile, returning null if absent or invalid. */

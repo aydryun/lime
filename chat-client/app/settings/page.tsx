@@ -21,6 +21,7 @@ import { TeamsSection } from "@/components/settings/teams-section";
 import { Button } from "@/components/ui/button";
 import { apiUrl } from "@/lib/api";
 import { type AuthUser, getStoredUser, setStoredUser } from "@/lib/auth";
+import { authHeaders } from "@/lib/http";
 import {
   DEFAULT_NOTIFICATIONS,
   getStoredLanguage,
@@ -178,8 +179,7 @@ function AccountSection({
     try {
       const response = await fetch(apiUrl("/api/users/me"), {
         method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ firstname, lastname, email, username }),
       });
 
@@ -454,8 +454,7 @@ function PrivacySection() {
     try {
       const response = await fetch(apiUrl("/api/users/me/password"), {
         method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 
