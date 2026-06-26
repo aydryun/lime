@@ -2,11 +2,22 @@ import pkg from "pg";
 
 const { Pool } = pkg;
 
-// En production (Render), DB_SSL=true active le TLS exigé par les BDD managées.
+// DB_SSL=true active le TLS exigé par la BDD externe (Neon), avec vérification
+// du certificat (rejectUnauthorized:true) : la CA de Neon est publique, donc
+// présente dans le store système — pas de CA custom à fournir.
 const ssl =
-  process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : false;
+  process.env.DB_SSL === "true" ? { rejectUnauthorized: true } : false;
 
-// DATABASE_URL prime (BDD managée) ; sinon variables discrètes pour le dev local.
+// En production, la BDD est externe (Neon) : DATABASE_URL est OBLIGATOIRE.
+// On échoue tôt plutôt que de retomber silencieusement sur localhost/postgres
+// (ce fallback discret n'est destiné qu'au dev local).
+if (process.env.NODE_ENV === "production" && !process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL manquant en production : renseignez la connection string Neon (cf. render.yaml → lime-backend).",
+  );
+}
+
+// DATABASE_URL prime (BDD externe) ; sinon variables discrètes pour le dev local.
 const pool = new Pool(
   process.env.DATABASE_URL
     ? { connectionString: process.env.DATABASE_URL, ssl }
