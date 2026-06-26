@@ -1,5 +1,4 @@
-import { describe, expect, expectTypeOf, test } from "bun:test";
-
+import { describe, expect, test } from "bun:test";
 import { cleanString } from "../../src/organisations.ts";
 
 describe("cleanString()", () => {
@@ -10,16 +9,16 @@ describe("cleanString()", () => {
 
   test("Lenght = 0", () => {
     const trimmedString = cleanString("", 10);
-    expectTypeOf(trimmedString).toBeNull();
+    expect(trimmedString).toBeNull();
   });
 
   test("Longeur supérieur a maxLength", () => {
     const trimmedString = cleanString("string-plus-longue-que-ml", 10);
-    expectTypeOf(trimmedString).toBeNull();
+    expect(trimmedString).toBeNull();
   });
 
   test("Parametre autre qu'une chaine de charateres", () => {
     const trimmedString = cleanString(10, 10);
-    expectTypeOf(trimmedString).toBeNull();
+    expect(trimmedString).toBeNull();
   });
 });
