@@ -41,7 +41,7 @@ describe("createActivationToken()", () => {
     const token = createActivationToken(1);
     const payload = jwt.verify(token, TEST_SECRET) as { exp: number };
     const now = Math.floor(Date.now() / 1000);
-    expect(payload.exp).toBeGreaterThan(now);
-    expect(payload.exp).toBeGreaterThan(now + 604800 - 10);
+    expect(payload.exp).toBeGreaterThanOrEqual(now + 604800 - 10);
+    expect(payload.exp).toBeLessThanOrEqual(now + 604800 + 10);
   });
 });

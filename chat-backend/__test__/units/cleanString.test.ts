@@ -10,16 +10,16 @@ describe("cleanString()", () => {
 
   test("Lenght = 0", () => {
     const trimmedString = cleanString("", 10);
-    expectTypeOf(trimmedString).toBeNull;
+    expectTypeOf(trimmedString).toBeNull();
   });
 
   test("Longeur supérieur a maxLength", () => {
     const trimmedString = cleanString("string-plus-longue-que-ml", 10);
-    expectTypeOf(trimmedString).toBeNull;
+    expectTypeOf(trimmedString).toBeNull();
   });
 
   test("Parametre autre qu'une chaine de charateres", () => {
     const trimmedString = cleanString(10, 10);
-    expectTypeOf(trimmedString).toBeNull;
+    expectTypeOf(trimmedString).toBeNull();
   });
 });
