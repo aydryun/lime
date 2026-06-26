@@ -28,8 +28,7 @@ const TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 function setAuthCookie(res: Response, token: string): void {
   res.cookie(TOKEN_COOKIE, token, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    ...cookieSiteOptions(),
     maxAge: TOKEN_MAX_AGE_MS,
     path: "/",
   });
@@ -37,7 +36,23 @@ function setAuthCookie(res: Response, token: string): void {
 
 /** Removes the auth cookie from the client. */
 function clearAuthCookie(res: Response): void {
-  res.clearCookie(TOKEN_COOKIE, { path: "/" });
+  res.clearCookie(TOKEN_COOKIE, { ...cookieSiteOptions(), path: "/" });
+}
+
+/**
+ * Cookie cross-site options. En production le front et le back sont sur des
+ * domaines distincts (contexte intersite) : le navigateur exige alors
+ * `SameSite=None` + `Secure`. En dev local (même origine), on garde `Lax`.
+ */
+function cookieSiteOptions(): {
+  sameSite: "none" | "lax";
+  secure: boolean;
+} {
+  const isProd = process.env.NODE_ENV === "production";
+  return {
+    sameSite: isProd ? "none" : "lax",
+    secure: isProd,
+  };
 }
 
 // POST /api/auth/register
