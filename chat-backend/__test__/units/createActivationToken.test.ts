@@ -9,7 +9,7 @@ mock.module("../../src/config.js", () => ({
 
 import { createActivationToken } from "../../src/auth.js";
 
-describe("createActivationToken", () => {
+describe("createActivationToken()", () => {
   test("retourne une chaîne de caractères", () => {
     const token = createActivationToken(1);
     expect(typeof token).toBe("string");

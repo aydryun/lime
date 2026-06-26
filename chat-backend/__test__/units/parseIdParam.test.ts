@@ -1,8 +1,8 @@
-import { describe, expectTypeOf, mock, test } from "bun:test";
+import { describe, expectTypeOf, test } from "bun:test";
 
 import { parseIdParam } from "../../src/organisations.ts";
 
-describe("parseIdParam", () => {
+describe("parseIdParam()", () => {
   test("Conversion string => number (Chiffre)", () => {
     const parsedId = parseIdParam("9");
     expectTypeOf(parsedId).toBeNumber;
