@@ -2,11 +2,11 @@ name: test
 
 on:
   pull_request:
-    branches: ["master"]
+    branches: ["main"]
 
 jobs:
   e2e_tests:
-    name: Test — End2End
+    name: Test — End2End (Backend)
     runs-on: ubuntu-latest
 
     steps:
@@ -55,3 +55,27 @@ jobs:
           cd chat-backend && bun run test
 
         working-directory: .
+
+  unit_tests:
+    name: Test — Unitaires (Backend)
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 #V2.2.0
+        with:
+          bun-version: latest
+
+      - name: Installation dependances bun
+        run: bun install --frozen-lockfile
+        working-directory: ./chat-backend 
+
+      - name: Lancement des tests 
+        run: bun test units
+
+        working-directory: ./chat-backend 
+
