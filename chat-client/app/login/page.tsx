@@ -40,7 +40,14 @@ export default function LoginPage() {
       }
 
       const { token, user } = data as LoginResponse;
-      setStoredToken(token);
+      try {
+        setStoredToken(token);
+      } catch {
+        setError(
+          "Impossible d'enregistrer la session. Vérifiez que le stockage du navigateur est activé.",
+        );
+        return;
+      }
       setStoredUser(user);
       router.replace("/chat");
       router.refresh();

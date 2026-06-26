@@ -45,7 +45,10 @@ export function setStoredToken(token: string): void {
   try {
     window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
   } catch (err) {
+    // Ne pas poser le flag si le jeton n'a pas pu être stocké : sinon le proxy
+    // laisse entrer sur /chat alors qu'authHeaders() n'a aucun Bearer à envoyer.
     console.warn("Failed to persist token to localStorage", err);
+    throw err;
   }
   document.cookie = `${AUTH_FLAG_COOKIE}=1; path=/; max-age=86400; samesite=lax`;
 }
