@@ -1,5 +1,5 @@
 import { apiUrl } from "./api";
-import { getJson, handle, jsonInit } from "./http";
+import { authInit, getJson, handle, jsonInit } from "./http";
 
 export type TeamRole = "team_owner" | "team_admin" | "team_member";
 
@@ -50,10 +50,7 @@ export async function renameTeam(
 
 export async function deleteTeam(id: number): Promise<void> {
   await handle<void>(
-    await fetch(apiUrl(`/api/teams/${id}`), {
-      method: "DELETE",
-      credentials: "include",
-    }),
+    await fetch(apiUrl(`/api/teams/${id}`), authInit("DELETE")),
   );
 }
 
@@ -79,9 +76,9 @@ export async function removeTeamMember(
   userId: number,
 ): Promise<void> {
   await handle<void>(
-    await fetch(apiUrl(`/api/teams/${teamId}/members/${userId}`), {
-      method: "DELETE",
-      credentials: "include",
-    }),
+    await fetch(
+      apiUrl(`/api/teams/${teamId}/members/${userId}`),
+      authInit("DELETE"),
+    ),
   );
 }

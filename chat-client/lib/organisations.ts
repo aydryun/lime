@@ -1,5 +1,5 @@
 import { apiUrl } from "./api";
-import { getJson, handle, jsonInit } from "./http";
+import { authInit, getJson, handle, jsonInit } from "./http";
 
 export type OrgRole = "org_owner" | "org_admin" | "member";
 
@@ -94,9 +94,6 @@ export async function setOrgMemberRole(
 
 export async function removeOrgMember(userId: number): Promise<void> {
   await handle<void>(
-    await fetch(apiUrl(`/api/org/members/${userId}`), {
-      method: "DELETE",
-      credentials: "include",
-    }),
+    await fetch(apiUrl(`/api/org/members/${userId}`), authInit("DELETE")),
   );
 }

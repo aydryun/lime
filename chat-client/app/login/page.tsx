@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { apiUrl } from "@/lib/api";
-import { type AuthUser, setStoredUser } from "@/lib/auth";
+import { type AuthUser, setStoredToken, setStoredUser } from "@/lib/auth";
 
 type LoginResponse = {
+  token: string;
   user: AuthUser;
 };
 
@@ -25,7 +26,6 @@ export default function LoginPage() {
     try {
       const response = await fetch(apiUrl("/api/auth/login"), {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
@@ -39,7 +39,15 @@ export default function LoginPage() {
         return;
       }
 
-      const { user } = data as LoginResponse;
+      const { token, user } = data as LoginResponse;
+      try {
+        setStoredToken(token);
+      } catch {
+        setError(
+          "Impossible d'enregistrer la session. Vérifiez que le stockage du navigateur est activé.",
+        );
+        return;
+      }
       setStoredUser(user);
       router.replace("/chat");
       router.refresh();

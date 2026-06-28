@@ -19,7 +19,12 @@ import { ChannelMembersDialog } from "@/components/channel-members-dialog";
 import { OwnerLeaveDialog } from "@/components/owner-leave-dialog";
 import { ModeToggle } from "@/components/theme-selector";
 import { apiUrl } from "@/lib/api";
-import { type AuthUser, clearStoredUser, getStoredUser } from "@/lib/auth";
+import {
+  type AuthUser,
+  clearStoredToken,
+  clearStoredUser,
+  getStoredUser,
+} from "@/lib/auth";
 import {
   type Channel,
   type ChannelMessage,
@@ -30,6 +35,7 @@ import {
   renameChannel,
   sendMessage,
 } from "@/lib/channels";
+import { jsonInit } from "@/lib/http";
 
 type ViewMode = "personal" | "channels";
 
@@ -103,13 +109,11 @@ export default function ChatPage() {
 
   const handleLogout = async () => {
     try {
-      await fetch(apiUrl("/api/auth/logout"), {
-        method: "POST",
-        credentials: "include",
-      });
+      await fetch(apiUrl("/api/auth/logout"), jsonInit("POST"));
     } catch {
       // Best-effort
     }
+    clearStoredToken();
     clearStoredUser();
     router.replace("/login");
     router.refresh();

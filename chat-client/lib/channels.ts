@@ -1,4 +1,5 @@
 import { apiUrl } from "./api";
+import { authInit, jsonInit } from "./http";
 
 export type CanalRole = "canal_owner" | "canal_admin" | "canal_member";
 
@@ -59,17 +60,8 @@ async function handle<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-const jsonInit = (method: string, body?: unknown): RequestInit => ({
-  method,
-  credentials: "include",
-  headers: { "Content-Type": "application/json" },
-  body: body !== undefined ? JSON.stringify(body) : undefined,
-});
-
 export async function fetchChannels(): Promise<Channel[]> {
-  return handle<Channel[]>(
-    await fetch(apiUrl("/api/channels"), { credentials: "include" }),
-  );
+  return handle<Channel[]>(await fetch(apiUrl("/api/channels"), authInit()));
 }
 
 export async function createChannel(name: string): Promise<Channel> {
@@ -89,10 +81,7 @@ export async function renameChannel(
 
 export async function deleteChannel(id: number): Promise<void> {
   await handle<unknown>(
-    await fetch(apiUrl(`/api/channels/${id}`), {
-      method: "DELETE",
-      credentials: "include",
-    }),
+    await fetch(apiUrl(`/api/channels/${id}`), authInit("DELETE")),
   );
 }
 
@@ -100,9 +89,7 @@ export async function fetchMembers(
   channelId: number,
 ): Promise<ChannelMember[]> {
   return handle<ChannelMember[]>(
-    await fetch(apiUrl(`/api/channels/${channelId}/members`), {
-      credentials: "include",
-    }),
+    await fetch(apiUrl(`/api/channels/${channelId}/members`), authInit()),
   );
 }
 
@@ -114,7 +101,7 @@ export async function searchNonMembers(
   return handle<UserSummary[]>(
     await fetch(
       apiUrl(`/api/channels/${channelId}/non-members?${params.toString()}`),
-      { credentials: "include" },
+      authInit(),
     ),
   );
 }
@@ -136,10 +123,10 @@ export async function removeMember(
   userId: number,
 ): Promise<void> {
   await handle<unknown>(
-    await fetch(apiUrl(`/api/channels/${channelId}/members/${userId}`), {
-      method: "DELETE",
-      credentials: "include",
-    }),
+    await fetch(
+      apiUrl(`/api/channels/${channelId}/members/${userId}`),
+      authInit("DELETE"),
+    ),
   );
 }
 
@@ -172,9 +159,7 @@ export async function fetchMessages(
   channelId: number,
 ): Promise<ChannelMessage[]> {
   return handle<ChannelMessage[]>(
-    await fetch(apiUrl(`/api/channels/${channelId}/messages`), {
-      credentials: "include",
-    }),
+    await fetch(apiUrl(`/api/channels/${channelId}/messages`), authInit()),
   );
 }
 
