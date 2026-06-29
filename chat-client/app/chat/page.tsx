@@ -413,9 +413,10 @@ export default function ChatPage() {
                       className="w-full text-left px-3 py-2 text-sm hover:bg-muted flex items-center gap-2"
                     >
                       <Users className="w-4 h-4" />
-                      {activeChannel.my_role === "canal_member"
-                        ? "Voir les membres"
-                        : "Gérer les membres"}
+                      {activeChannel.my_role === "canal_owner" ||
+                      activeChannel.my_role === "canal_admin"
+                        ? "Gérer les membres"
+                        : "Voir les membres"}
                     </button>
                     {activeChannel.my_role === "canal_owner" && (
                       <button
@@ -509,18 +510,27 @@ export default function ChatPage() {
               type="text"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              disabled={!activeChannel || sending === true}
+              disabled={
+                !activeChannel ||
+                sending === true ||
+                activeChannel.my_role === "canal_reader"
+              }
               placeholder={
-                activeChannel
-                  ? `Message #${activeChannel.name}`
-                  : "Sélectionnez un canal"
+                !activeChannel
+                  ? "Sélectionnez un canal"
+                  : activeChannel.my_role === "canal_reader"
+                    ? "Lecture seule — vous ne pouvez pas écrire ici"
+                    : `Message #${activeChannel.name}`
               }
               className="flex-1 bg-transparent border-none outline-none px-3 text-foreground placeholder:text-muted-foreground h-10 disabled:opacity-50"
             />
             <button
               type="submit"
               disabled={
-                !activeChannel || sending === true || draft.trim() === ""
+                !activeChannel ||
+                sending === true ||
+                draft.trim() === "" ||
+                activeChannel.my_role === "canal_reader"
               }
               aria-label="Envoyer le message"
               className="w-10 h-10 rounded-md bg-primary text-primary-foreground flex items-center justify-center hover:opacity-90 transition-opacity shrink-0 disabled:opacity-50"

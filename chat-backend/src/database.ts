@@ -185,11 +185,16 @@ export type ChannelRow = {
   name: string;
 };
 
-export type CanalRole = "canal_owner" | "canal_admin" | "canal_member";
+export type CanalRole =
+  | "canal_owner"
+  | "canal_admin"
+  | "canal_member"
+  | "canal_reader";
 const CANAL_ROLE_NAMES: CanalRole[] = [
   "canal_owner",
   "canal_admin",
   "canal_member",
+  "canal_reader",
 ];
 
 /** Resolves a canal role name to its roles.id (cached after first lookup). */
@@ -234,7 +239,8 @@ export async function listUserChannels(
                 ORDER BY CASE r.name
                   WHEN 'canal_owner' THEN 0
                   WHEN 'canal_admin' THEN 1
-                  ELSE 2 END
+                  WHEN 'canal_member' THEN 2
+                  ELSE 3 END
                 LIMIT 1),
               'canal_member'
             ) AS my_role
@@ -382,7 +388,8 @@ export async function listChannelMembers(
                 ORDER BY CASE r.name
                   WHEN 'canal_owner' THEN 0
                   WHEN 'canal_admin' THEN 1
-                  ELSE 2 END
+                  WHEN 'canal_member' THEN 2
+                  ELSE 3 END
                 LIMIT 1),
               'canal_member'
             ) AS role
@@ -398,7 +405,8 @@ export async function listChannelMembers(
               )
               WHEN 'canal_owner' THEN 0
               WHEN 'canal_admin' THEN 1
-              ELSE 2
+              WHEN 'canal_member' THEN 2
+              ELSE 3
             END,
             u.username ASC`,
     [channelId, CANAL_ROLE_NAMES],
@@ -428,7 +436,8 @@ export async function getUserChannelRole(
      ORDER BY CASE r.name
        WHEN 'canal_owner' THEN 0
        WHEN 'canal_admin' THEN 1
-       ELSE 2 END
+       WHEN 'canal_member' THEN 2
+       ELSE 3 END
      LIMIT 1`,
     [userId, channelId, CANAL_ROLE_NAMES],
   );

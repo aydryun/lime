@@ -200,7 +200,7 @@ router.get("/:id/non-members", authenticate, async (req: AuthRequest, res) => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   try {
     const role = await getUserChannelRole(id, userId, orgId);
-    if (!role || role === "canal_member") {
+    if (role !== "canal_owner" && role !== "canal_admin") {
       res.status(403).json({ error: "Accès refusé" });
       return;
     }
@@ -235,7 +235,7 @@ router.post("/:id/members", authenticate, async (req: AuthRequest, res) => {
   }
   try {
     const role = await getUserChannelRole(id, userId, orgId);
-    if (!role || role === "canal_member") {
+    if (role !== "canal_owner" && role !== "canal_admin") {
       res.status(403).json({ error: "Accès refusé" });
       return;
     }
@@ -278,10 +278,14 @@ router.patch(
       return;
     }
     const role = req.body?.role as CanalRole | undefined;
-    if (role !== "canal_admin" && role !== "canal_member") {
-      res
-        .status(400)
-        .json({ error: "Rôle attendu: canal_admin ou canal_member" });
+    if (
+      role !== "canal_admin" &&
+      role !== "canal_member" &&
+      role !== "canal_reader"
+    ) {
+      res.status(400).json({
+        error: "Rôle attendu: canal_admin, canal_member ou canal_reader",
+      });
       return;
     }
     try {
@@ -401,13 +405,13 @@ router.delete(
         }
       } else {
         // Removing someone else: owner can remove anyone; admin only canal_member.
-        if (callerRole === "canal_member") {
+        if (callerRole !== "canal_owner" && callerRole !== "canal_admin") {
           res.status(403).json({ error: "Accès refusé" });
           return;
         }
-        if (callerRole === "canal_admin" && targetRole !== "canal_member") {
+        if (callerRole === "canal_admin" && targetRole === "canal_admin") {
           res.status(403).json({
-            error: "Un admin ne peut retirer que des membres",
+            error: "Un admin ne peut pas retirer un autre admin",
           });
           return;
         }
@@ -489,6 +493,12 @@ router.post("/:id/messages", authenticate, async (req: AuthRequest, res) => {
     const role = await getUserChannelRole(id, userId, orgId);
     if (!role) {
       res.status(403).json({ error: "Accès refusé" });
+      return;
+    }
+    if (role === "canal_reader") {
+      res
+        .status(403)
+        .json({ error: "Lecture seule : vous ne pouvez pas écrire ici" });
       return;
     }
     const message = await insertChannelMessage(id, userId, content);
