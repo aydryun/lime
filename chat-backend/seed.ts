@@ -218,7 +218,8 @@ async function seed() {
         else roleName = "canal_member";
         await client.query(
           `INSERT INTO user_roles (user_id, role_id, channel_id)
-           VALUES ($1, $2, $3)`,
+           VALUES ($1, $2, $3)
+           ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
           [userIds[username], roleIds[roleName], channelIds[name]],
         );
       }
@@ -288,16 +289,19 @@ async function seed() {
     // --- Org roles ---
     // Admin : owner de l'org ; Julie : admin de l'org.
     await client.query(
-      `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)`,
+      `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
       [userIds.admin, roleIds.org_owner, orgId],
     );
     await client.query(
-      `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)`,
+      `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
       [userIds.julie, roleIds.org_admin, orgId],
     );
     // Lucas : membre simple de l'org (peut consulter les teams via member:team:GET).
     await client.query(
-      `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)`,
+      `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
       [userIds.lucas, roleIds.member, orgId],
     );
     console.log("✓ Rôles org attribués");
@@ -305,19 +309,22 @@ async function seed() {
     // --- User roles ---
     // Admin : rôle admin sur la team
     await client.query(
-      `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)`,
+      `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
       [userIds.admin, roleIds.admin, teamId],
     );
 
     // Julie : moderator sur la team
     await client.query(
-      `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)`,
+      `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
       [userIds.julie, roleIds.moderator, teamId],
     );
 
     // Lucas : member sur la team
     await client.query(
-      `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)`,
+      `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
       [userIds.lucas, roleIds.member, teamId],
     );
     console.log("✓ Rôles attribués aux utilisateurs");
