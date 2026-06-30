@@ -355,10 +355,10 @@ export async function createChannel(
     }
     // Le créateur est toujours rattaché et devient canal_owner.
     await client.query(
-      `INSERT INTO channel_team_users (channel_id, user_id)
-       VALUES ($1, $2)
+      `INSERT INTO channel_team_users (channel_id, user_id, org_id)
+       VALUES ($1, $2, $3)
        ON CONFLICT DO NOTHING`,
-      [channelRow.id, creatorId],
+      [channelRow.id, creatorId, orgId],
     );
     await client.query(
       `INSERT INTO user_roles (user_id, role_id, channel_id)
@@ -367,10 +367,11 @@ export async function createChannel(
     );
 
     if (spec.mode === "team" || spec.mode === "team_subtree") {
-      // La team doit appartenir à l'org du canal (isolation tenant).
+      // La team doit appartenir à l'org du canal (isolation tenant — aussi
+      // garantie par la FK composite (team_id, org_id) → teams(id, org_id)).
       const ins = await client.query(
-        `INSERT INTO channel_team_users (channel_id, team_id, include_descendants, default_role_id)
-         SELECT $1, $2, $3, $4
+        `INSERT INTO channel_team_users (channel_id, team_id, include_descendants, default_role_id, org_id)
+         SELECT $1, $2, $3, $4, $5
          WHERE EXISTS (SELECT 1 FROM teams WHERE id = $2 AND org_id = $5)
          ON CONFLICT DO NOTHING
          RETURNING id`,
@@ -386,12 +387,13 @@ export async function createChannel(
         throw new Error("Team hors org ou déjà liée au canal");
       }
     } else if (spec.mode === "members") {
-      // Chaque utilisateur doit appartenir à l'org du canal.
+      // Chaque utilisateur doit appartenir à l'org du canal (aussi garanti par
+      // la FK composite (user_id, org_id) → users(id, org_id)).
       for (const targetId of spec.userIds) {
         if (targetId === creatorId) continue;
         await client.query(
-          `INSERT INTO channel_team_users (channel_id, user_id, default_role_id)
-           SELECT $1, $2, $3
+          `INSERT INTO channel_team_users (channel_id, user_id, default_role_id, org_id)
+           SELECT $1, $2, $3, $4
            WHERE EXISTS (SELECT 1 FROM users WHERE id = $2 AND org_id = $4)
            ON CONFLICT DO NOTHING`,
           [channelRow.id, targetId, defaultRoleId, orgId],
@@ -627,8 +629,8 @@ export async function addChannelMember(
       return false;
     }
     const ins = await client.query(
-      `INSERT INTO channel_team_users (channel_id, user_id)
-       VALUES ($1, $2)
+      `INSERT INTO channel_team_users (channel_id, user_id, org_id)
+       VALUES ($1, $2, (SELECT org_id FROM channels WHERE id = $1))
        ON CONFLICT DO NOTHING`,
       [channelId, userId],
     );
@@ -743,8 +745,8 @@ export async function transferChannelOwnership(
     );
     // Make sure they're a direct member too.
     await client.query(
-      `INSERT INTO channel_team_users (channel_id, user_id)
-       VALUES ($1, $2)
+      `INSERT INTO channel_team_users (channel_id, user_id, org_id)
+       VALUES ($1, $2, (SELECT org_id FROM channels WHERE id = $1))
        ON CONFLICT DO NOTHING`,
       [channelId, newOwnerId],
     );

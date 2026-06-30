@@ -189,8 +189,8 @@ async function seed() {
     // --- Channel team users (la team a accès à tous les channels) ---
     for (const name of channelNames) {
       await client.query(
-        `INSERT INTO channel_team_users (channel_id, team_id) VALUES ($1, $2)`,
-        [channelIds[name], teamId],
+        `INSERT INTO channel_team_users (channel_id, team_id, org_id) VALUES ($1, $2, $3)`,
+        [channelIds[name], teamId, orgId],
       );
     }
     console.log("✓ Team liée aux channels");
