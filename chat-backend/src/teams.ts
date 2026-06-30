@@ -4,11 +4,17 @@ import {
   createTeam,
   deleteTeam,
   getTeamById,
+  getUserOrgRole,
+  getUserTeamRole,
+  isTeamMemberInOrg,
   listTeamMembers,
   listTeams,
+  listTeamsForMember,
   type PermissionAction,
   removeTeamMember,
   renameTeam,
+  setTeamMemberRole,
+  type TeamRole,
   userHasPermission,
 } from "./database.js";
 import { type AuthRequest, authenticate } from "./middleware.js";
@@ -40,6 +46,25 @@ function canTeam(
   return userHasPermission(userId, "team", action, { orgId, teamId });
 }
 
+/** Vrai si l'utilisateur gère toutes les teams de l'org (org_owner / org_admin). */
+async function isOrgManager(userId: number, orgId: number): Promise<boolean> {
+  const role = await getUserOrgRole(userId, orgId);
+  return role === "org_owner" || role === "org_admin";
+}
+
+/**
+ * Un membre simple ne peut consulter qu'une team à laquelle il appartient ;
+ * un manager d'org peut consulter toutes les teams de son org.
+ */
+async function canViewTeam(
+  userId: number,
+  orgId: number,
+  teamId: number,
+): Promise<boolean> {
+  if (await isOrgManager(userId, orgId)) return true;
+  return isTeamMemberInOrg(userId, teamId, orgId);
+}
+
 // GET /api/teams — liste des teams de l'org
 router.get("/", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
@@ -49,11 +74,11 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
     return;
   }
   try {
-    if (!(await canTeam(userId, orgId, null, "GET"))) {
-      res.status(403).json({ error: "Permission refusée" });
-      return;
-    }
-    const teams = await listTeams(orgId);
+    // Un manager d'org voit toutes les teams ; un membre simple ne voit que
+    // celles auxquelles il appartient (au lieu d'un 403 global).
+    const teams = (await isOrgManager(userId, orgId))
+      ? await listTeams(orgId)
+      : await listTeamsForMember(orgId, userId);
     res.json(teams);
   } catch (error) {
     console.error("List teams error:", error);
@@ -63,7 +88,7 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/teams — crée une team (le créateur devient team_owner)
+// POST /api/teams — crée une team vide (le créateur n'en devient pas membre)
 router.post("/", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   const orgId = req.orgId;
@@ -108,7 +133,7 @@ router.get("/:id", authenticate, async (req: AuthRequest, res) => {
       res.status(404).json({ error: "Équipe introuvable" });
       return;
     }
-    if (!(await canTeam(userId, orgId, teamId, "GET"))) {
+    if (!(await canViewTeam(userId, orgId, teamId))) {
       res.status(403).json({ error: "Permission refusée" });
       return;
     }
@@ -210,7 +235,7 @@ router.get("/:id/members", authenticate, async (req: AuthRequest, res) => {
       res.status(404).json({ error: "Équipe introuvable" });
       return;
     }
-    if (!(await canTeam(userId, orgId, teamId, "GET"))) {
+    if (!(await canViewTeam(userId, orgId, teamId))) {
       res.status(403).json({ error: "Permission refusée" });
       return;
     }
@@ -271,6 +296,75 @@ router.post("/:id/members", authenticate, async (req: AuthRequest, res) => {
     res.status(500).json({ error: "Erreur lors de l'ajout du membre" });
   }
 });
+
+const TEAM_ROLES: TeamRole[] = ["team_owner", "team_admin", "team_member"];
+
+// PATCH /api/teams/:id/members/:userId — change le rôle d'un membre (team:UPDATE).
+// La promotion en team_owner (transfert de propriété) est réservée aux managers
+// d'org et au propriétaire actuel, pour éviter qu'un team_admin s'auto-promeuve.
+router.patch(
+  "/:id/members/:userId",
+  authenticate,
+  async (req: AuthRequest, res) => {
+    const userId = req.userId;
+    const orgId = req.orgId;
+    if (!userId || !orgId) {
+      res.status(401).json({ error: "Non authentifié" });
+      return;
+    }
+    const teamId = parseIdParam(req.params.id);
+    const targetId = parseIdParam(req.params.userId);
+    if (!teamId || !targetId) {
+      res.status(400).json({ error: "Identifiant invalide" });
+      return;
+    }
+    const role = req.body?.role as unknown;
+    if (typeof role !== "string" || !TEAM_ROLES.includes(role as TeamRole)) {
+      res.status(400).json({ error: "Rôle invalide" });
+      return;
+    }
+    try {
+      const team = await getTeamById(teamId, orgId);
+      if (!team) {
+        res.status(404).json({ error: "Équipe introuvable" });
+        return;
+      }
+      if (!(await canTeam(userId, orgId, teamId, "UPDATE"))) {
+        res.status(403).json({ error: "Permission refusée" });
+        return;
+      }
+      // Toute action sur la propriété (promouvoir un propriétaire OU toucher au
+      // propriétaire actuel) est réservée aux managers d'org et au propriétaire.
+      const targetCurrentRole = await getUserTeamRole(targetId, teamId);
+      const touchesOwnership =
+        role === "team_owner" || targetCurrentRole === "team_owner";
+      if (touchesOwnership) {
+        const callerIsOwner =
+          (await getUserTeamRole(userId, teamId)) === "team_owner";
+        if (!(await isOrgManager(userId, orgId)) && !callerIsOwner) {
+          res.status(403).json({
+            error:
+              "Seul un manager d'org ou le propriétaire peut gérer la propriété de l'équipe",
+          });
+          return;
+        }
+      }
+      const result = await setTeamMemberRole(
+        teamId,
+        targetId,
+        role as TeamRole,
+      );
+      if (result === "not_member") {
+        res.status(404).json({ error: "Membre introuvable dans l'équipe" });
+        return;
+      }
+      res.json({ team_id: teamId, user_id: targetId, role });
+    } catch (error) {
+      console.error("Update team member role error:", error);
+      res.status(500).json({ error: "Erreur lors du changement de rôle" });
+    }
+  },
+);
 
 // DELETE /api/teams/:id/members/:userId — retire un membre (team:UPDATE, ou soi-même)
 router.delete(

@@ -14,9 +14,11 @@ import {
   fetchTeams,
   removeTeamMember,
   renameTeam,
+  setTeamMemberRole,
   type Team,
   type TeamDetail,
   type TeamMember,
+  type TeamRole,
 } from "@/lib/teams";
 import { Badge, ErrorBanner, FieldLabel, SectionHeader, TextInput } from "./ui";
 
@@ -64,7 +66,11 @@ export function TeamsSection() {
     <>
       <SectionHeader
         title="Équipes"
-        description="Créez des équipes et gérez leurs membres."
+        description={
+          isOrgManager
+            ? "Créez des équipes et gérez leurs membres."
+            : "Les équipes auxquelles vous appartenez."
+        }
       />
       {error && (
         <div className="mb-6">
@@ -72,7 +78,9 @@ export function TeamsSection() {
         </div>
       )}
 
-      <CreateTeamForm onCreated={reloadTeams} setError={setError} />
+      {isOrgManager && (
+        <CreateTeamForm onCreated={reloadTeams} setError={setError} />
+      )}
 
       <div className="divide-y divide-border rounded-lg border border-border bg-card mt-4">
         {loading && (
@@ -80,7 +88,9 @@ export function TeamsSection() {
         )}
         {!loading && teams.length === 0 && (
           <p className="text-sm text-muted-foreground p-4">
-            Aucune équipe pour le moment.
+            {isOrgManager
+              ? "Aucune équipe pour le moment."
+              : "Vous ne faites partie d'aucune équipe."}
           </p>
         )}
         {teams.map((team) => (
@@ -188,6 +198,8 @@ function TeamRow({
     detail?.members.find((m) => m.user_id === currentUserId)?.role ?? null;
   const canManage =
     isOrgManager || myTeamRole === "team_owner" || myTeamRole === "team_admin";
+  // Seuls un manager d'org ou le propriétaire peuvent transférer la propriété.
+  const canTransferOwner = isOrgManager || myTeamRole === "team_owner";
 
   const refresh = async () => {
     await loadDetail();
@@ -299,6 +311,7 @@ function TeamRow({
                 teamId={team.id}
                 member={m}
                 canManage={canManage}
+                canTransferOwner={canTransferOwner}
                 isSelf={m.user_id === currentUserId}
                 onChanged={refresh}
                 setError={setError}
@@ -328,6 +341,7 @@ function TeamMemberRow({
   teamId,
   member,
   canManage,
+  canTransferOwner,
   isSelf,
   onChanged,
   setError,
@@ -335,11 +349,41 @@ function TeamMemberRow({
   teamId: number;
   member: TeamMember;
   canManage: boolean;
+  canTransferOwner: boolean;
   isSelf: boolean;
   onChanged: () => void;
   setError: (msg: string | null) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const isOwner = member.role === "team_owner";
+  // Un manager d'équipe simple (team_admin) ne peut pas toucher au propriétaire.
+  const editableRole = canManage && (!isOwner || canTransferOwner);
+
+  const roleOptions: { value: TeamRole; label: string }[] = [
+    { value: "team_member", label: "Membre" },
+    { value: "team_admin", label: "Admin" },
+    ...(canTransferOwner || isOwner
+      ? [{ value: "team_owner" as TeamRole, label: "Propriétaire" }]
+      : []),
+  ];
+
+  const changeRole = async (role: TeamRole) => {
+    if (role === member.role) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await setTeamMemberRole(teamId, member.user_id, role);
+      onChanged();
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Erreur lors du changement de rôle",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const remove = async () => {
     setBusy(true);
@@ -363,10 +407,25 @@ function TeamMemberRow({
         <span className="text-muted-foreground">@{member.username}</span>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <Badge tone={member.role === "team_owner" ? "primary" : "muted"}>
-          {TEAM_ROLE_LABELS[member.role]}
-        </Badge>
-        {(canManage || isSelf) && member.role !== "team_owner" && (
+        {editableRole ? (
+          <select
+            value={member.role}
+            disabled={busy}
+            onChange={(e) => changeRole(e.target.value as TeamRole)}
+            className="h-8 rounded-md border border-input bg-transparent px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+          >
+            {roleOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <Badge tone={isOwner ? "primary" : "muted"}>
+            {TEAM_ROLE_LABELS[member.role]}
+          </Badge>
+        )}
+        {(canManage || isSelf) && !isOwner && (
           <Button
             type="button"
             variant="ghost"
