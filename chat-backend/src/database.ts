@@ -212,40 +212,71 @@ export async function getCanalRoleId(role: CanalRole): Promise<number> {
   return id;
 }
 
-/** Channels visible to a user: direct membership, via team, or via user_roles canal entry. */
+/**
+ * Channels visible to a user dans son org : rôle explicite, lien direct, lien
+ * team (étendu au sous-arbre si include_descendants), ou canal org-wide.
+ * my_role = rôle explicite, sinon meilleur rôle par défaut des liens applicables.
+ */
 export async function listUserChannels(
   userId: number,
   orgId: number,
 ): Promise<Array<ChannelRow & { my_role: CanalRole }>> {
   const result = await pool.query(
-    `WITH my_channels AS (
-       SELECT DISTINCT c.id, c.name
+    `WITH RECURSIVE access_teams AS (
+       SELECT ctu.channel_id, ctu.team_id, ctu.include_descendants, ctu.default_role_id
+       FROM channel_team_users ctu
+       JOIN channels c ON c.id = ctu.channel_id
+       WHERE ctu.team_id IS NOT NULL AND c.org_id = $3
+       UNION ALL
+       SELECT at.channel_id, t.id, at.include_descendants, at.default_role_id
+       FROM teams t
+       JOIN access_teams at ON t.parent_team_id = at.team_id
+       WHERE at.include_descendants = TRUE
+     ),
+     candidates AS (
+       SELECT at.channel_id, at.default_role_id
+       FROM access_teams at
+       JOIN team_users tu ON tu.team_id = at.team_id AND tu.user_id = $1
+       UNION ALL
+       SELECT ctu.channel_id, ctu.default_role_id
+       FROM channel_team_users ctu
+       WHERE ctu.user_id = $1
+       UNION ALL
+       SELECT c.id, c.default_role_id
        FROM channels c
-       LEFT JOIN channel_team_users ctu ON ctu.channel_id = c.id
-       LEFT JOIN team_users tu
-         ON tu.team_id = ctu.team_id AND tu.user_id = $1
-       LEFT JOIN user_roles ur
-         ON ur.channel_id = c.id AND ur.user_id = $1
-         AND ur.role_id IN (SELECT id FROM roles WHERE name = ANY($2::text[]))
-       WHERE c.org_id = $3
-         AND (ctu.user_id = $1 OR tu.user_id = $1 OR ur.id IS NOT NULL)
+       WHERE c.is_org_wide = TRUE AND c.org_id = $3
+     ),
+     explicit AS (
+       SELECT ur.channel_id, r.name
+       FROM user_roles ur
+       JOIN roles r ON r.id = ur.role_id
+       WHERE ur.user_id = $1 AND r.name = ANY($2::text[])
+     ),
+     chan_ids AS (
+       SELECT channel_id FROM candidates
+       UNION
+       SELECT channel_id FROM explicit
      )
-     SELECT mc.id, mc.name,
-            COALESCE(
-              (SELECT r.name FROM user_roles ur
-                JOIN roles r ON r.id = ur.role_id
-                WHERE ur.user_id = $1 AND ur.channel_id = mc.id
-                  AND r.name = ANY($2::text[])
-                ORDER BY CASE r.name
-                  WHEN 'canal_owner' THEN 0
-                  WHEN 'canal_admin' THEN 1
-                  WHEN 'canal_member' THEN 2
-                  ELSE 3 END
-                LIMIT 1),
-              'canal_member'
-            ) AS my_role
-     FROM my_channels mc
-     ORDER BY mc.id ASC`,
+     SELECT c.id, c.name,
+       COALESCE(
+         (SELECT e.name FROM explicit e WHERE e.channel_id = c.id
+           ORDER BY CASE e.name
+             WHEN 'canal_owner' THEN 0 WHEN 'canal_admin' THEN 1
+             WHEN 'canal_member' THEN 2 ELSE 3 END
+           LIMIT 1),
+         (SELECT COALESCE(r.name, 'canal_member') FROM candidates cand
+           LEFT JOIN roles r ON r.id = cand.default_role_id
+           WHERE cand.channel_id = c.id
+           ORDER BY CASE COALESCE(r.name, 'canal_member')
+             WHEN 'canal_owner' THEN 0 WHEN 'canal_admin' THEN 1
+             WHEN 'canal_member' THEN 2 ELSE 3 END
+           LIMIT 1),
+         'canal_member'
+       ) AS my_role
+     FROM chan_ids ci
+     JOIN channels c ON c.id = ci.channel_id
+     WHERE c.org_id = $3
+     ORDER BY c.id ASC`,
     [userId, CANAL_ROLE_NAMES, orgId],
   );
   return result.rows;
@@ -260,24 +291,61 @@ export async function findChannelById(id: number): Promise<ChannelRow | null> {
   return result.rows[0] ?? null;
 }
 
-/** Creates a channel in the caller's org; creator becomes canal_owner. */
+/** Rôle par défaut sélectionnable à l'ajout (le propriétaire reste le créateur). */
+export type DefaultCanalRole = "canal_admin" | "canal_member" | "canal_reader";
+
+/**
+ * Mode de peuplement initial d'un canal :
+ *  - "org"          : toute l'organisation (réservé aux managers d'org) ;
+ *  - "team"         : les membres directs d'une équipe ;
+ *  - "team_subtree" : l'équipe et tout son sous-arbre (appartenance dynamique) ;
+ *  - "members"      : des utilisateurs précis ;
+ *  - "private"      : personne d'autre que le créateur.
+ * Les membres ajoutés via le lien reçoivent `defaultRole` comme rôle par défaut.
+ */
+export type ChannelAddSpec =
+  | { mode: "private" }
+  | { mode: "org"; defaultRole: DefaultCanalRole }
+  | {
+      mode: "team" | "team_subtree";
+      teamId: number;
+      defaultRole: DefaultCanalRole;
+    }
+  | { mode: "members"; userIds: number[]; defaultRole: DefaultCanalRole };
+
+/**
+ * Creates a channel in the caller's org; creator becomes canal_owner. Le peuplement
+ * initial suit `spec`. La portée (droit de scoper à telle team / d'ajouter tel
+ * membre) est vérifiée en amont par la route ; ici on revérifie l'appartenance
+ * à l'org (isolation tenant). Le rôle effectif des membres ajoutés est résolu
+ * dynamiquement (cf. getUserChannelRole) à partir du `default_role_id` du lien.
+ */
 export async function createChannel(
   name: string,
   creatorId: number,
   orgId: number,
+  spec: ChannelAddSpec = { mode: "private" },
 ): Promise<ChannelRow> {
   const ownerRoleId = await getCanalRoleId("canal_owner");
+  const defaultRoleId =
+    spec.mode === "private" ? null : await getCanalRoleId(spec.defaultRole);
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     // Le canal est créé dans l'org du JWT, après recoupement que le créateur
     // appartient bien à cette org (évite tout désalignement JWT / users.org_id).
     const channel = await client.query(
-      `INSERT INTO channels (name, org_id)
-       SELECT $1, $3
+      `INSERT INTO channels (name, org_id, is_org_wide, default_role_id)
+       SELECT $1, $3, $4, $5
        WHERE EXISTS (SELECT 1 FROM users WHERE id = $2 AND org_id = $3)
        RETURNING id, name`,
-      [name, creatorId, orgId],
+      [
+        name,
+        creatorId,
+        orgId,
+        spec.mode === "org",
+        spec.mode === "org" ? defaultRoleId : null,
+      ],
     );
     const channelRow = channel.rows[0] as ChannelRow | undefined;
     if (!channelRow) {
@@ -285,6 +353,7 @@ export async function createChannel(
         "Org mismatch : le créateur n'appartient pas à l'organisation demandée",
       );
     }
+    // Le créateur est toujours rattaché et devient canal_owner.
     await client.query(
       `INSERT INTO channel_team_users (channel_id, user_id)
        VALUES ($1, $2)
@@ -296,6 +365,40 @@ export async function createChannel(
        VALUES ($1, $2, $3)`,
       [creatorId, ownerRoleId, channelRow.id],
     );
+
+    if (spec.mode === "team" || spec.mode === "team_subtree") {
+      // La team doit appartenir à l'org du canal (isolation tenant).
+      const ins = await client.query(
+        `INSERT INTO channel_team_users (channel_id, team_id, include_descendants, default_role_id)
+         SELECT $1, $2, $3, $4
+         WHERE EXISTS (SELECT 1 FROM teams WHERE id = $2 AND org_id = $5)
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
+        [
+          channelRow.id,
+          spec.teamId,
+          spec.mode === "team_subtree",
+          defaultRoleId,
+          orgId,
+        ],
+      );
+      if ((ins.rowCount ?? 0) === 0) {
+        throw new Error("Team hors org ou déjà liée au canal");
+      }
+    } else if (spec.mode === "members") {
+      // Chaque utilisateur doit appartenir à l'org du canal.
+      for (const targetId of spec.userIds) {
+        if (targetId === creatorId) continue;
+        await client.query(
+          `INSERT INTO channel_team_users (channel_id, user_id, default_role_id)
+           SELECT $1, $2, $3
+           WHERE EXISTS (SELECT 1 FROM users WHERE id = $2 AND org_id = $4)
+           ON CONFLICT DO NOTHING`,
+          [channelRow.id, targetId, defaultRoleId, orgId],
+        );
+      }
+    }
+
     await client.query("COMMIT");
     return channelRow;
   } catch (err) {
@@ -356,59 +459,76 @@ export type ChannelMember = {
 
 /**
  * Members of a channel = union of:
- *  - users with a canal_* user_roles entry for the channel,
- *  - users in channel_team_users.user_id,
- *  - users in any team linked via channel_team_users.team_id.
- * Default role is canal_member when no explicit user_roles entry exists.
+ *  - users with a canal_* user_roles entry (rôle explicite),
+ *  - users in channel_team_users.user_id (lien direct),
+ *  - users d'une team liée, étendue à son sous-arbre si include_descendants,
+ *  - tous les membres de l'org si le canal est org-wide.
+ * Le rôle effectif est le rôle explicite s'il existe, sinon le rôle par défaut
+ * le plus élevé parmi les liens applicables (NULL ⇒ canal_member).
  */
 export async function listChannelMembers(
   channelId: number,
 ): Promise<ChannelMember[]> {
   const result = await pool.query(
-    `WITH member_ids AS (
-       SELECT DISTINCT user_id FROM (
-         SELECT user_id FROM channel_team_users
-         WHERE channel_id = $1 AND user_id IS NOT NULL
-         UNION
-         SELECT tu.user_id FROM channel_team_users ctu
-         JOIN team_users tu ON tu.team_id = ctu.team_id
-         WHERE ctu.channel_id = $1 AND ctu.team_id IS NOT NULL
-         UNION
-         SELECT ur.user_id FROM user_roles ur
-         JOIN roles r ON r.id = ur.role_id
-         WHERE ur.channel_id = $1 AND r.name = ANY($2::text[])
-       ) src
+    `WITH RECURSIVE access_teams AS (
+       SELECT ctu.team_id AS team_id, ctu.include_descendants, ctu.default_role_id
+       FROM channel_team_users ctu
+       WHERE ctu.channel_id = $1 AND ctu.team_id IS NOT NULL
+       UNION ALL
+       SELECT t.id, at.include_descendants, at.default_role_id
+       FROM teams t
+       JOIN access_teams at ON t.parent_team_id = at.team_id
+       WHERE at.include_descendants = TRUE
+     ),
+     member_defaults AS (
+       SELECT tu.user_id, at.default_role_id
+       FROM access_teams at
+       JOIN team_users tu ON tu.team_id = at.team_id
+       UNION ALL
+       SELECT ctu.user_id, ctu.default_role_id
+       FROM channel_team_users ctu
+       WHERE ctu.channel_id = $1 AND ctu.user_id IS NOT NULL
+       UNION ALL
+       SELECT u.id, c.default_role_id
+       FROM channels c
+       JOIN users u ON u.org_id = c.org_id
+       WHERE c.id = $1 AND c.is_org_wide = TRUE
+     ),
+     explicit AS (
+       SELECT ur.user_id, r.name
+       FROM user_roles ur
+       JOIN roles r ON r.id = ur.role_id
+       WHERE ur.channel_id = $1 AND r.name = ANY($2::text[])
+     ),
+     member_ids AS (
+       SELECT user_id FROM member_defaults
+       UNION
+       SELECT user_id FROM explicit
      )
-     SELECT u.id AS user_id, u.username, u.firstname, u.lastname,
-            COALESCE(
-              (SELECT r.name FROM user_roles ur
-                JOIN roles r ON r.id = ur.role_id
-                WHERE ur.user_id = u.id AND ur.channel_id = $1
-                  AND r.name = ANY($2::text[])
-                ORDER BY CASE r.name
-                  WHEN 'canal_owner' THEN 0
-                  WHEN 'canal_admin' THEN 1
-                  WHEN 'canal_member' THEN 2
-                  ELSE 3 END
-                LIMIT 1),
-              'canal_member'
-            ) AS role
-     FROM member_ids mi
-     JOIN users u ON u.id = mi.user_id
-     ORDER BY CASE COALESCE(
-                (SELECT r.name FROM user_roles ur
-                  JOIN roles r ON r.id = ur.role_id
-                  WHERE ur.user_id = u.id AND ur.channel_id = $1
-                    AND r.name = ANY($2::text[])
-                  LIMIT 1),
-                'canal_member'
-              )
-              WHEN 'canal_owner' THEN 0
-              WHEN 'canal_admin' THEN 1
-              WHEN 'canal_member' THEN 2
-              ELSE 3
-            END,
-            u.username ASC`,
+     SELECT * FROM (
+       SELECT u.id AS user_id, u.username, u.firstname, u.lastname,
+         COALESCE(
+           (SELECT e.name FROM explicit e WHERE e.user_id = u.id
+             ORDER BY CASE e.name
+               WHEN 'canal_owner' THEN 0 WHEN 'canal_admin' THEN 1
+               WHEN 'canal_member' THEN 2 ELSE 3 END
+             LIMIT 1),
+           (SELECT COALESCE(r.name, 'canal_member') FROM member_defaults md
+             LEFT JOIN roles r ON r.id = md.default_role_id
+             WHERE md.user_id = u.id
+             ORDER BY CASE COALESCE(r.name, 'canal_member')
+               WHEN 'canal_owner' THEN 0 WHEN 'canal_admin' THEN 1
+               WHEN 'canal_member' THEN 2 ELSE 3 END
+             LIMIT 1),
+           'canal_member'
+         ) AS role
+       FROM member_ids mi
+       JOIN users u ON u.id = mi.user_id
+     ) m
+     ORDER BY CASE m.role
+       WHEN 'canal_owner' THEN 0 WHEN 'canal_admin' THEN 1
+       WHEN 'canal_member' THEN 2 ELSE 3 END,
+       m.username ASC`,
     [channelId, CANAL_ROLE_NAMES],
   );
   return result.rows;
@@ -443,17 +563,48 @@ export async function getUserChannelRole(
   );
   if (explicit.rows[0]?.name) return explicit.rows[0].name as CanalRole;
 
-  const membership = await pool.query(
-    `SELECT 1
-     FROM channel_team_users ctu
-     LEFT JOIN team_users tu
-       ON tu.team_id = ctu.team_id AND tu.user_id = $1
-     WHERE ctu.channel_id = $2
-       AND (ctu.user_id = $1 OR tu.user_id = $1)
+  // Pas de rôle explicite : on résout l'appartenance par lien (org-wide, lien
+  // utilisateur direct, lien team éventuellement étendu au sous-arbre) et on
+  // retient le rôle par défaut le plus élevé parmi les liens applicables.
+  // Le sous-arbre est calculé dynamiquement : un membre ajouté/retiré d'une team
+  // (ou une nouvelle sous-team) ajuste immédiatement l'accès au canal.
+  const fallback = await pool.query(
+    `WITH RECURSIVE access_teams AS (
+       SELECT ctu.team_id AS team_id, ctu.include_descendants, ctu.default_role_id
+       FROM channel_team_users ctu
+       WHERE ctu.channel_id = $2 AND ctu.team_id IS NOT NULL
+       UNION ALL
+       SELECT t.id, at.include_descendants, at.default_role_id
+       FROM teams t
+       JOIN access_teams at ON t.parent_team_id = at.team_id
+       WHERE at.include_descendants = TRUE
+     ),
+     candidates AS (
+       SELECT at.default_role_id AS role_id
+       FROM access_teams at
+       JOIN team_users tu ON tu.team_id = at.team_id AND tu.user_id = $1
+       UNION ALL
+       SELECT ctu.default_role_id
+       FROM channel_team_users ctu
+       WHERE ctu.channel_id = $2 AND ctu.user_id = $1
+       UNION ALL
+       SELECT c.default_role_id
+       FROM channels c
+       WHERE c.id = $2 AND c.is_org_wide = TRUE
+         AND EXISTS (SELECT 1 FROM users u WHERE u.id = $1 AND u.org_id = c.org_id)
+     )
+     SELECT COALESCE(r.name, 'canal_member') AS name
+     FROM candidates cand
+     LEFT JOIN roles r ON r.id = cand.role_id
+     ORDER BY CASE COALESCE(r.name, 'canal_member')
+       WHEN 'canal_owner' THEN 0
+       WHEN 'canal_admin' THEN 1
+       WHEN 'canal_member' THEN 2
+       ELSE 3 END
      LIMIT 1`,
     [userId, channelId],
   );
-  return (membership.rowCount ?? 0) > 0 ? "canal_member" : null;
+  return (fallback.rows[0]?.name as CanalRole | undefined) ?? null;
 }
 
 /** Adds a user to a channel as canal_member. Returns true if newly added. */

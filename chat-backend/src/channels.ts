@@ -2,10 +2,14 @@ import { Router } from "express";
 import {
   addChannelMember,
   type CanalRole,
+  type ChannelAddSpec,
+  canManageUser,
   createChannel,
+  type DefaultCanalRole,
   deleteChannel,
   findChannelById,
   getChannelMessages,
+  getTeamById,
   getUserChannelRole,
   insertChannelMessage,
   listChannelMembers,
@@ -15,6 +19,7 @@ import {
   renameChannel,
   setChannelRole,
   transferChannelOwnership,
+  userHasPermission,
 } from "./database.js";
 import { type AuthRequest, authenticate } from "./middleware.js";
 import { publishMessage } from "./redis.js";
@@ -33,6 +38,24 @@ function cleanName(value: unknown): string | null {
 function parseIdParam(value: string): number | null {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+const DEFAULT_CANAL_ROLES: DefaultCanalRole[] = [
+  "canal_admin",
+  "canal_member",
+  "canal_reader",
+];
+
+/** Lit le rôle par défaut du body (canal_member si absent), ou null si invalide. */
+function parseDefaultRole(value: unknown): DefaultCanalRole | null {
+  if (value === undefined || value === null) return "canal_member";
+  if (
+    typeof value === "string" &&
+    (DEFAULT_CANAL_ROLES as string[]).includes(value)
+  ) {
+    return value as DefaultCanalRole;
+  }
+  return null;
 }
 
 // GET /api/channels — list channels the current user belongs to
@@ -54,7 +77,14 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/channels — create a new channel (creator becomes canal_owner)
+// POST /api/channels — crée un canal (le créateur devient canal_owner).
+// Le peuplement initial est scopé par "mode" :
+//   - "org"          : tout l'org — réservé aux managers d'org (channel:CREATE org) ;
+//   - "team"/"team_subtree" : l'équipe (et son sous-arbre) — l'appelant doit gérer
+//                      cette team (channel:CREATE en cascade) ;
+//   - "members"      : des utilisateurs précis — chacun doit être sous l'autorité
+//                      de l'appelant (canManageUser) ;
+//   - "private" / absent : seulement le créateur (ouvert à tout authentifié).
 router.post("/", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   const orgId = req.orgId;
@@ -67,8 +97,79 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
     res.status(400).json({ error: "Nom du canal requis" });
     return;
   }
+  const mode = (req.body?.mode as string | undefined) ?? "private";
+  const defaultRole = parseDefaultRole(req.body?.default_role);
+  if (defaultRole === null) {
+    res.status(400).json({ error: "default_role invalide" });
+    return;
+  }
+
   try {
-    const channel = await createChannel(name, userId, orgId);
+    let spec: ChannelAddSpec;
+    if (mode === "private") {
+      spec = { mode: "private" };
+    } else if (mode === "org") {
+      // Org-wide : exige channel:CREATE au scope org (managers d'org uniquement).
+      if (!(await userHasPermission(userId, "channel", "CREATE", { orgId }))) {
+        res.status(403).json({
+          error: "Seul un manager d'organisation peut créer un canal org-wide",
+        });
+        return;
+      }
+      spec = { mode: "org", defaultRole };
+    } else if (mode === "team" || mode === "team_subtree") {
+      const teamId = parseIdParam(String(req.body?.team_id));
+      if (!teamId) {
+        res.status(400).json({ error: "team_id invalide" });
+        return;
+      }
+      const team = await getTeamById(teamId, orgId);
+      if (!team) {
+        res.status(404).json({ error: "Équipe introuvable" });
+        return;
+      }
+      // L'appelant doit gérer cette team (cascade) ou être manager d'org.
+      if (
+        !(await userHasPermission(userId, "channel", "CREATE", {
+          orgId,
+          teamId,
+        }))
+      ) {
+        res.status(403).json({ error: "Permission refusée sur cette équipe" });
+        return;
+      }
+      spec = { mode, teamId, defaultRole };
+    } else if (mode === "members") {
+      const raw = req.body?.user_ids;
+      if (!Array.isArray(raw) || raw.length === 0) {
+        res.status(400).json({ error: "user_ids requis" });
+        return;
+      }
+      const userIds: number[] = [];
+      for (const v of raw) {
+        const id = typeof v === "number" ? v : parseIdParam(String(v));
+        if (!id) {
+          res.status(400).json({ error: "user_ids invalide" });
+          return;
+        }
+        userIds.push(id);
+      }
+      // Chaque cible doit être sous l'autorité de l'appelant.
+      for (const targetId of userIds) {
+        if (!(await canManageUser(userId, orgId, targetId))) {
+          res.status(403).json({
+            error: "Un utilisateur ciblé n'est pas dans votre périmètre",
+          });
+          return;
+        }
+      }
+      spec = { mode: "members", userIds, defaultRole };
+    } else {
+      res.status(400).json({ error: "mode invalide" });
+      return;
+    }
+
+    const channel = await createChannel(name, userId, orgId, spec);
     res.status(201).json({ ...channel, my_role: "canal_owner" });
   } catch (error) {
     console.error("Create channel error:", error);
