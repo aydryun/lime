@@ -1,172 +1,155 @@
-# Guide de Démarrage Rapide
+# Guide de bonne pratiques
 
-## Prérequis
+## Stratégies de préfixes et Gitflow
 
-- Bun 1.0+ (environnement d'exécution JavaScript - installez depuis <https://bun.sh>)
-- PostgreSQL 12+
-- Redis 6+
+Pour notre gitflow nous allons utiliser les préfixes suivant
 
-## Configuration en 5 Minutes
+| prefix | Description                                            |
+| ------ | ------------------------------------------------------ |
+| feat   | Nouvelle fonctionnalitée                               |
+| fix    | Réglage d'un bug utilisateur                           |
+| docs   | changement dans la documentation                       |
+| ref    | Refactorisation du code / amelioration de performances |
+| style  | modification d'elements stylistiques                   |
+| typo   | Modification de textes                                 |
+| test   | Ajout / modification de test applicatifs               |
+| chore  | tache de maintenances                                  |
 
-### 1. Démarrer PostgreSQL et Redis (via Docker via Docker compose)
+#### formatage des commits
 
-```bash
-# Lancer 
-docker compose up
+- Tout les commits doivent réutiliser les préfixes autorisés
+- le message doit être rédiger en français sans accents de préférence
+
+`(prefix): <description>`
+Exemple :  `feat: Ajout de la page de connexion`
+
+### Stratégie de branches
+
+| Branche                     | Description                                            |
+| --------------------------- | ------------------------------------------------------ |
+| main                        | Branche principale, push directes interdits            |
+| <prefix\>/<fonctionnalitée> | branche contenant une fonctionnalitée en developpement |
+
+Les préfixes de commit peuvent êtres utiliser a la place de feat lorsque la modification correspond uniquement un aspect
+ex `typo/homepage` pour une branches contenant de multiples modification de la page d'accueil
+
+## Architecture du pipeline CI/CD
+
+```mermaid
+flowchart LR
+
+    A[main] --> B["Création branche (prefix)/(fonctionnalité)"]  
+    B --> C[Développement]  
+    C --> D[Ouverture/Modification Pull Request]  
+    D --> E[Tests unitaires]  
+    D --> F[Lint]  
+    D --> G[Tests E2E]  
+
+    E --> H{Tous les contrôles OK ?}  
+
+    F --> H  
+    G --> H  
+    H -->|Non| C  
+    H -->|Oui| I[Code Review]  
+    I --> J{Review approuvée ?}  
+    J -->|Non| C  
+    J -->|Oui| K[Merge vers main]  
+    K --> A
 ```
 
-### 2. Installer les Dépendances du Backend
+Les commits sont fait sur des branches correctement nommées ([[#Stratégies de préfixes et Gitflow]])
+Une fois les branches complétés, une pull request est ouverte, les workflow de test e2e, lint, review agent se lancent automatiquement. Si le tests sont validés, Un de nous deux review le code, si il est validé il est merge dans la main.
 
-```bash
-cd chat-backend
-bun install
+### Architecture de lancement des tests
+
+```mermaid
+
+flowchart LR
+    A[feat/fonctionnalité] -->|merge| B{lint & build dev}
+    B -->  C{Test}
+    C --> D[Test End2End]
+    C --> E[Test Unitaires]
+    C --> F[Test d'Integration]
+    D -->|Installation des dependances workflow| G[Chargement du .env.test]
+    G -->H[Lancement de docker compose]
+    H -->I[Attente de la bdd x5]
+    I -->J{Base de donnée ok ?}
+    J -->|NON|I
+    J -->|Oui|K[Initialisation des valeur de tests]
+    K -->L[Lancement de bun & les tests]
 ```
 
-### 3. Configurer l'Environnement (Optionnel)
+### Code review et acceptation de merge
 
-Les valeurs par défaut devraient fonctionner si PostgreSQL et Redis sont exécutés localement :
+A chaque pull request coderabbit déclenche sa propre code review en même temps que les autres actions, la review coderabbit[^2] va nous permettre de modifier nos pull request en fonction de la pertinence des changements proposés et leur impacte.
+    En parallèle la personne qui n'a pas rédigé la pull request sera sollicitée comme Reviewer des changement.
 
-```bash
-# Vérifiez les valeurs par défaut de chat-backend/.env - elles sont déjà configurées
-cat chat-backend/.env.example
+## Environnement de test e2e
+
+Lors de la création d'une pull request une pipeline ci lance parallèlement les test via le workflow `test.yml`. Ce workflow initialise une environnement de test avec des valeurs prédéfinis afin de vérifier l'intégration du projet sur un environnement.
+
+##### Son fonctionnement
+
+La pipeline, installe toutes les actions nécessaire a son fonctionnement. Une fois les actions installés, la pipeline copie le fichier `env.test`, une fois le fichier `env.test` copier, la pipeline va lancé un docker compose de la base de donnée postgres et le redis. Ensuite, la pipeline va vérifier l'état de lancement des deux services, lorsqu'ils sont confirmés comme lancé, la pipeline va lancer bun et exécuté les test e2e[^1].
+
+## Structure du projet
+
+```sh  
+.  
+├── .github/  
+│ ├── workflows/  
+| | ├──  test.yml # Piple CI de tests 
+│ │ └──  lint.yml # Pipeline CI de linting 
+| 
+├── chat-backend/  
+│ ├── __test__/ # dossiers contenant les tests backend
+│ │ └── api.test.ts # Tests d'intégration/API  
+│ ├── migrations/ # Migrations de base de données  
+│ ├── src/ # Code source principal du backend  
+│ ├── .env.example # Variables d'environnement d'exemple  
+│ ├── .env.test # Variables d'environnement pour les test 
+│ ├── .gitignore  
+│ ├── biome.json # Configuration Biome (lint + format)  
+│ ├── bun.lock # Verrouillage des dépendances Bun  
+│ ├── package.json # Dépendances et scripts backend  
+│ ├── seed.ts # Script d'initialisation des données  
+│ └── tsconfig.json
+|
+├── chat-client/  
+│ ├── app/ # Routes et pages de l'application  
+│ ├── components/ # Composants UI réutilisables  
+│ ├── lib/ # Utilitaires, services et helpers  
+│ ├── public/ # Assets 
+│ ├── types/  
+│ ├── .env.example # Variables d'environnement d'exemple  
+│ ├── .gitignore  
+│ ├── biome.json # Configuration Biome  
+│ ├── bun.lock  
+│ ├── package.json # Dépendances et scripts frontend  
+│ ├── proxy.ts # Configuration du proxy/reverse proxy  
+│ └── README.md # Documentation du client   
+├── docs/ # Documentation du projet  
+├── .coderabbit.yml # Configuration CodeRabbit  
+├── .env.example # Variables d'environnement globales  
+├── .gitignore  
+├── compose.yml # Orchestration Docker Compose  
+├── CONTRIBUTING.md # Guide de contribution  
+├── package.json # Scripts et dépendances racine  
+├── README.md # Documentation principale  
+└── run.ts # Point d'entrée / script d'exécution  
 ```
 
-### 4. Démarrer le Serveur Backend
+## Possibilité d'évolution
 
-```bash
-# Depuis chat-backend/
-bun run dev
-```
+Pour l'évolution de notre projet nous pourrions mettre en place une coordination avec ouverture d'issue dans l'onglet projet du repository afin d'organiser les issue regler a partir du kanban fournie.
 
-Sortie attendue :
+## Note de bas de page
 
-```
-✓ Schéma de la base de données initialisé
-✓ Connecté à Redis
-🚀 Serveur en cours d'exécution sur http://localhost:3000
-📡 WebSocket disponible sur ws://localhost:3000/ws
-```
+[^1]: Test E2E : Le test de bout en bout (E2E) est une méthodologie de test logiciel qui valide l'ensemble du flux de travail applicatif du début à la fin [(source: IBM)](https://www.ibm.com/think/topics/end-to-end-testing)
 
-### 5. Démarrer le Frontend (dans un nouveau terminal)
+[^2]: Coderrabbit : Agent de review par intelligence artificiel
 
-```bash
-cd chat-client
-bun install
-bun run index.ts
-```
+# Auteurs
 
-Sortie attendue :
-
-```
-🌐 Ouvre ton navigateur sur http://localhost:8080
-```
-
-### 6. Ouvrir le Navigateur
-
-Visitez `http://localhost:8080` dans votre navigateur
-
-## Architecture en un Coup d'Œil
-
-```
-┌─────────────────────────────────────────────────┐
-│           Client Navigateur                     │
-│  (JavaScript, WebSocket)                        │
-└──────────────────┬──────────────────────────────┘
-                   │
-                   │ WebSocket
-                   ↓
-┌──────────────────────────────────────┐
-│   Serveur Express (Port 3000)        │
-│  - API HTTP (/api/messages)          │
-│  - Gestionnaire WebSocket (/ws)      │
-└───┬──────────────────────────┬───────┘
-    │                          │
-    │                          │
-    ↓                          ↓
-┌────────────────┐      ┌─────────────┐
-│  PostgreSQL    │      │   Redis     │
-│  (Persistant)  │      │ (Temps réel)│
-└────────────────┘      └─────────────┘
-```
-
-## Tests
-
-### Test 1 : Clients Multiples
-
-1. Ouvrez `http://localhost:8080` dans deux fenêtres de navigateur
-2. Entrez des noms différents (par exemple, "Alice", "Bob")
-3. Envoyez des messages depuis chaque fenêtre
-4. Vérifiez que les messages apparaissent en temps réel sur les deux
-
-### Test 2 : Persistance des Messages
-
-1. Envoyez plusieurs messages
-2. Rafraîchissez votre navigateur
-3. Tous les messages devraient réapparaître (ils sont dans PostgreSQL)
-
-### Test 3 : API REST
-
-```bash
-# Obtenir tous les messages
-curl http://localhost:3000/api/messages
-
-# Envoyer un message
-curl -X POST http://localhost:3000/api/messages \
-  -H "Content-Type: application/json" \
-  -d '{"sender": "UtilisateurTest", "text": "Bonjour depuis curl !"}'
-```
-
-## Problèmes Courants
-
-| Problème | Solution |
-|----------|----------|
-| "Impossible de se connecter à PostgreSQL" | Exécutez le conteneur PostgreSQL ou démarrez PostgreSQL système |
-| "Impossible de se connecter à Redis" | Exécutez le conteneur Redis ou démarrez Redis système |
-| "Port 3000 déjà utilisé" | Changez `PORT=3001` dans `.env` et reconnectez le client à `ws://localhost:3001/ws` |
-| "Port 8080 déjà utilisé" | Changez le port `serve()` dans `chat-client/index.ts` |
-| Les messages ne s'enregistrent pas | Vérifiez que PostgreSQL est en cours d'exécution : `docker ps` |
-| Les messages ne sont pas en temps réel | Vérifiez que Redis est en cours d'exécution : `redis-cli ping` |
-
-## Prochaines Étapes
-
-- Lisez `MIGRATION.md` pour la documentation détaillée de l'architecture
-- Consultez `chat-backend/src/` pour l'implémentation du serveur
-- Modifiez `chat-client/src/client.ts` pour personnaliser le client
-- Ajoutez l'authentification, les salons, ou d'autres fonctionnalités dans `src/database.ts`
-
-## Nettoyage
-
-Pour arrêter tous les services :
-
-```bash
-# Arrêter les serveurs Bun
-Ctrl+C (dans les deux terminaux)
-
-# Arrêter les conteneurs Docker
-docker stop postgres-chat redis-chat
-docker rm postgres-chat redis-chat
-```
-
-## Structure des Fichiers
-
-```
-.
-├── chat-backend/
-│   ├── src/
-│   │   ├── index.ts       # Serveur principal
-│   │   ├── database.ts    # PostgreSQL
-│   │   └── redis.ts       # Pub/sub Redis
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── .env.example       # Modèle d'environnement
-├── chat-client/
-│   ├── index.ts           # Serveur Bun
-│   ├── src/
-│   │   └── client.ts      # Client WebSocket
-│   ├── package.json
-│   └── tsconfig.json
-├── MIGRATION.md           # Guide de migration détaillé
-└── QUICKSTART.md          # Ce fichier
-```
-
-Bonne discussion ! 🎉
+[Erwan](https://github.com/ClubEpice) :
+[@Adryan](https://github.com/aydryun) :
