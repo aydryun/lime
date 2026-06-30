@@ -4,8 +4,11 @@ import {
   createTeam,
   deleteTeam,
   getTeamById,
+  getUserOrgRole,
+  getUserTeamRole,
   listTeamMembers,
   listTeams,
+  listTeamsForMember,
   type PermissionAction,
   removeTeamMember,
   renameTeam,
@@ -40,6 +43,25 @@ function canTeam(
   return userHasPermission(userId, "team", action, { orgId, teamId });
 }
 
+/** Vrai si l'utilisateur gère toutes les teams de l'org (org_owner / org_admin). */
+async function isOrgManager(userId: number, orgId: number): Promise<boolean> {
+  const role = await getUserOrgRole(userId, orgId);
+  return role === "org_owner" || role === "org_admin";
+}
+
+/**
+ * Un membre simple ne peut consulter qu'une team à laquelle il appartient ;
+ * un manager d'org peut consulter toutes les teams de son org.
+ */
+async function canViewTeam(
+  userId: number,
+  orgId: number,
+  teamId: number,
+): Promise<boolean> {
+  if (await isOrgManager(userId, orgId)) return true;
+  return (await getUserTeamRole(userId, teamId)) !== null;
+}
+
 // GET /api/teams — liste des teams de l'org
 router.get("/", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
@@ -49,11 +71,11 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
     return;
   }
   try {
-    if (!(await canTeam(userId, orgId, null, "GET"))) {
-      res.status(403).json({ error: "Permission refusée" });
-      return;
-    }
-    const teams = await listTeams(orgId);
+    // Un manager d'org voit toutes les teams ; un membre simple ne voit que
+    // celles auxquelles il appartient (au lieu d'un 403 global).
+    const teams = (await isOrgManager(userId, orgId))
+      ? await listTeams(orgId)
+      : await listTeamsForMember(orgId, userId);
     res.json(teams);
   } catch (error) {
     console.error("List teams error:", error);
@@ -108,7 +130,7 @@ router.get("/:id", authenticate, async (req: AuthRequest, res) => {
       res.status(404).json({ error: "Équipe introuvable" });
       return;
     }
-    if (!(await canTeam(userId, orgId, teamId, "GET"))) {
+    if (!(await canViewTeam(userId, orgId, teamId))) {
       res.status(403).json({ error: "Permission refusée" });
       return;
     }
@@ -210,7 +232,7 @@ router.get("/:id/members", authenticate, async (req: AuthRequest, res) => {
       res.status(404).json({ error: "Équipe introuvable" });
       return;
     }
-    if (!(await canTeam(userId, orgId, teamId, "GET"))) {
+    if (!(await canViewTeam(userId, orgId, teamId))) {
       res.status(403).json({ error: "Permission refusée" });
       return;
     }

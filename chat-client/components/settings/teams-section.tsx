@@ -64,7 +64,11 @@ export function TeamsSection() {
     <>
       <SectionHeader
         title="Équipes"
-        description="Créez des équipes et gérez leurs membres."
+        description={
+          isOrgManager
+            ? "Créez des équipes et gérez leurs membres."
+            : "Les équipes auxquelles vous appartenez."
+        }
       />
       {error && (
         <div className="mb-6">
@@ -72,7 +76,9 @@ export function TeamsSection() {
         </div>
       )}
 
-      <CreateTeamForm onCreated={reloadTeams} setError={setError} />
+      {isOrgManager && (
+        <CreateTeamForm onCreated={reloadTeams} setError={setError} />
+      )}
 
       <div className="divide-y divide-border rounded-lg border border-border bg-card mt-4">
         {loading && (
@@ -80,7 +86,9 @@ export function TeamsSection() {
         )}
         {!loading && teams.length === 0 && (
           <p className="text-sm text-muted-foreground p-4">
-            Aucune équipe pour le moment.
+            {isOrgManager
+              ? "Aucune équipe pour le moment."
+              : "Vous ne faites partie d'aucune équipe."}
           </p>
         )}
         {teams.map((team) => (

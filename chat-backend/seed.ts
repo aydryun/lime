@@ -298,7 +298,7 @@ async function seed() {
        ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
       [userIds.julie, roleIds.org_admin, orgId],
     );
-    // Lucas : membre simple de l'org (peut consulter les teams via member:team:GET).
+    // Lucas : membre simple de l'org (ne voit que les teams auxquelles il appartient).
     await client.query(
       `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)
        ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,

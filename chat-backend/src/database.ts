@@ -1013,6 +1013,27 @@ export async function listTeams(
   return result.rows;
 }
 
+/**
+ * Lists only the teams of an org the given user belongs to (via team_users),
+ * with their member count. Utilisé pour les membres simples, qui ne doivent
+ * voir que leurs propres équipes.
+ */
+export async function listTeamsForMember(
+  orgId: number,
+  userId: number,
+): Promise<Array<TeamRow & { member_count: number }>> {
+  const result = await pool.query(
+    `SELECT t.id, t.name, t.org_id,
+       (SELECT COUNT(*)::int FROM team_users tu2 WHERE tu2.team_id = t.id) AS member_count
+     FROM teams t
+     JOIN team_users tu ON tu.team_id = t.id AND tu.user_id = $2
+     WHERE t.org_id = $1
+     ORDER BY t.id ASC`,
+    [orgId, userId],
+  );
+  return result.rows;
+}
+
 /** Returns a team row scoped to the org, or null. */
 export async function getTeamById(
   teamId: number,
