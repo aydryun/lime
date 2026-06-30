@@ -71,6 +71,19 @@ export async function addTeamMember(
   );
 }
 
+export async function setTeamMemberRole(
+  teamId: number,
+  userId: number,
+  role: TeamRole,
+): Promise<{ team_id: number; user_id: number; role: TeamRole }> {
+  return handle<{ team_id: number; user_id: number; role: TeamRole }>(
+    await fetch(
+      apiUrl(`/api/teams/${teamId}/members/${userId}`),
+      jsonInit("PATCH", { role }),
+    ),
+  );
+}
+
 export async function removeTeamMember(
   teamId: number,
   userId: number,

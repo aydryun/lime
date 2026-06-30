@@ -1046,46 +1046,31 @@ export async function getTeamById(
   return result.rows[0] ?? null;
 }
 
-/** Creates a team in the org; the creator becomes team_owner. */
+/**
+ * Creates an empty team in the org. Le créateur (un manager d'org) n'est PAS
+ * ajouté à l'équipe : il la gère via ses droits d'org sans en être membre, puis
+ * y ajoute les membres et désigne un propriétaire. Le paramètre creatorId sert
+ * uniquement à vérifier l'appartenance à l'org demandée.
+ */
 export async function createTeam(
   orgId: number,
   name: string,
   creatorId: number,
 ): Promise<TeamRow> {
-  const ownerRoleId = await getRoleId("team_owner");
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const team = await client.query(
-      `INSERT INTO teams (name, org_id)
-       SELECT $1, $3
-       WHERE EXISTS (SELECT 1 FROM users WHERE id = $2 AND org_id = $3)
-       RETURNING id, name, org_id`,
-      [name, creatorId, orgId],
+  const team = await pool.query(
+    `INSERT INTO teams (name, org_id)
+     SELECT $1, $3
+     WHERE EXISTS (SELECT 1 FROM users WHERE id = $2 AND org_id = $3)
+     RETURNING id, name, org_id`,
+    [name, creatorId, orgId],
+  );
+  const teamRow = team.rows[0] as TeamRow | undefined;
+  if (!teamRow) {
+    throw new Error(
+      "Org mismatch : le créateur n'appartient pas à l'organisation demandée",
     );
-    const teamRow = team.rows[0] as TeamRow | undefined;
-    if (!teamRow) {
-      throw new Error(
-        "Org mismatch : le créateur n'appartient pas à l'organisation demandée",
-      );
-    }
-    await client.query(
-      `INSERT INTO team_users (team_id, user_id) VALUES ($1, $2)
-       ON CONFLICT DO NOTHING`,
-      [teamRow.id, creatorId],
-    );
-    await client.query(
-      `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)`,
-      [creatorId, ownerRoleId, teamRow.id],
-    );
-    await client.query("COMMIT");
-    return teamRow;
-  } catch (err) {
-    await client.query("ROLLBACK");
-    throw err;
-  } finally {
-    client.release();
   }
+  return teamRow;
 }
 
 /** Renames a team within the org; returns the updated row or null. */
@@ -1271,6 +1256,64 @@ export async function removeTeamMember(
     );
     await client.query("COMMIT");
     return (result.rowCount ?? 0) > 0;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+export type SetTeamRoleResult = "updated" | "not_member";
+
+/**
+ * Change le rôle team-scopé d'un membre de l'équipe.
+ * Propriétaire unique : promouvoir un membre en team_owner rétrograde le(s)
+ * propriétaire(s) actuel(s) en team_admin (transfert de propriété).
+ * Renvoie "not_member" si l'utilisateur n'appartient pas à l'équipe.
+ */
+export async function setTeamMemberRole(
+  teamId: number,
+  userId: number,
+  role: TeamRole,
+): Promise<SetTeamRoleResult> {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const member = await client.query(
+      "SELECT 1 FROM team_users WHERE team_id = $1 AND user_id = $2",
+      [teamId, userId],
+    );
+    if (member.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return "not_member";
+    }
+    // Transfert : un seul propriétaire par équipe.
+    if (role === "team_owner") {
+      const ownerRoleId = await getRoleId("team_owner");
+      const adminRoleId = await getRoleId("team_admin");
+      await client.query(
+        `UPDATE user_roles SET role_id = $1
+         WHERE team_id = $2 AND role_id = $3 AND user_id <> $4`,
+        [adminRoleId, teamId, ownerRoleId, userId],
+      );
+    }
+    const roleId = await getRoleId(role);
+    // Remplace le rôle team-scopé courant du membre par le nouveau.
+    await client.query(
+      `DELETE FROM user_roles ur
+       USING roles r
+       WHERE ur.role_id = r.id AND ur.team_id = $1 AND ur.user_id = $2
+         AND r.name = ANY($3::text[])`,
+      [teamId, userId, TEAM_ROLE_NAMES],
+    );
+    await client.query(
+      `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)
+       ON CONFLICT DO NOTHING`,
+      [userId, roleId, teamId],
+    );
+    await client.query("COMMIT");
+    return "updated";
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
