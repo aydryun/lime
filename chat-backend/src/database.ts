@@ -752,7 +752,12 @@ export interface PermissionScope {
  * RBAC chokepoint : true si l'un des rôles de l'utilisateur — pertinent pour le
  * scope demandé (org, ou team/channel ciblés) — accorde la permission
  * (category, action) via role_permissions. Un rôle org-scopé couvre tout l'org,
- * un rôle team/canal-scopé ne couvre que sa team / son canal.
+ * un rôle canal-scopé ne couvre que son canal.
+ *
+ * Cascade d'autorité : un rôle team-scopé couvre la team ciblée ET toutes ses
+ * descendantes — on remonte la chaîne parent_team_id depuis la team demandée
+ * (team_chain) et on matche ur.team_id contre n'importe quel ancêtre. Ainsi un
+ * team_owner/team_admin d'une équipe gère automatiquement ses sous-équipes.
  */
 export async function userHasPermission(
   userId: number,
@@ -761,7 +766,13 @@ export async function userHasPermission(
   scope: PermissionScope,
 ): Promise<boolean> {
   const result = await pool.query(
-    `SELECT 1
+    `WITH RECURSIVE team_chain AS (
+       SELECT id, parent_team_id FROM teams WHERE id = $5
+       UNION ALL
+       SELECT t.id, t.parent_team_id FROM teams t
+       JOIN team_chain tc ON t.id = tc.parent_team_id
+     )
+     SELECT 1
      FROM user_roles ur
      JOIN role_permissions rp ON rp.role_id = ur.role_id
      JOIN permissions p ON p.id = rp.permission_id
@@ -770,7 +781,7 @@ export async function userHasPermission(
        AND p.action = $3::permission_action
        AND (
          ur.org_id = $4
-         OR ($5::int IS NOT NULL AND ur.team_id = $5)
+         OR ($5::int IS NOT NULL AND ur.team_id IN (SELECT id FROM team_chain))
          OR ($6::int IS NOT NULL AND ur.channel_id = $6)
        )
      LIMIT 1`,
@@ -996,6 +1007,7 @@ export interface TeamRow {
   id: number;
   name: string;
   org_id: number;
+  parent_team_id: number | null;
 }
 
 /** Lists the teams of an org with their member count. */
@@ -1003,7 +1015,7 @@ export async function listTeams(
   orgId: number,
 ): Promise<Array<TeamRow & { member_count: number }>> {
   const result = await pool.query(
-    `SELECT t.id, t.name, t.org_id,
+    `SELECT t.id, t.name, t.org_id, t.parent_team_id,
        (SELECT COUNT(*)::int FROM team_users tu WHERE tu.team_id = t.id) AS member_count
      FROM teams t
      WHERE t.org_id = $1
@@ -1014,22 +1026,29 @@ export async function listTeams(
 }
 
 /**
- * Lists only the teams of an org the given user belongs to (via team_users),
- * with their member count. Utilisé pour les membres simples, qui ne doivent
- * voir que leurs propres équipes.
+ * Lists the teams of an org visible to a non-org-manager : celles dont il est
+ * membre (via team_users) ET celles de son domaine d'autorité (sous-arbre des
+ * teams qu'il gère, y compris les sous-équipes vides qu'il pilote par cascade).
  */
 export async function listTeamsForMember(
   orgId: number,
   userId: number,
 ): Promise<Array<TeamRow & { member_count: number }>> {
+  const managedIds = await getManagedTeamIds(userId, orgId);
   const result = await pool.query(
-    `SELECT t.id, t.name, t.org_id,
+    `SELECT t.id, t.name, t.org_id, t.parent_team_id,
        (SELECT COUNT(*)::int FROM team_users tu2 WHERE tu2.team_id = t.id) AS member_count
      FROM teams t
-     JOIN team_users tu ON tu.team_id = t.id AND tu.user_id = $2
      WHERE t.org_id = $1
+       AND (
+         EXISTS (
+           SELECT 1 FROM team_users tu
+           WHERE tu.team_id = t.id AND tu.user_id = $2
+         )
+         OR t.id = ANY($3::int[])
+       )
      ORDER BY t.id ASC`,
-    [orgId, userId],
+    [orgId, userId, managedIds],
   );
   return result.rows;
 }
@@ -1040,29 +1059,40 @@ export async function getTeamById(
   orgId: number,
 ): Promise<TeamRow | null> {
   const result = await pool.query(
-    "SELECT id, name, org_id FROM teams WHERE id = $1 AND org_id = $2",
+    "SELECT id, name, org_id, parent_team_id FROM teams WHERE id = $1 AND org_id = $2",
     [teamId, orgId],
   );
   return result.rows[0] ?? null;
 }
 
 /**
- * Creates an empty team in the org. Le créateur (un manager d'org) n'est PAS
- * ajouté à l'équipe : il la gère via ses droits d'org sans en être membre, puis
- * y ajoute les membres et désigne un propriétaire. Le paramètre creatorId sert
- * uniquement à vérifier l'appartenance à l'org demandée.
+ * Creates an empty team in the org (le créateur n'est PAS ajouté ; il la gère
+ * via ses droits — org-scopés pour une racine, ou hérités par cascade depuis le
+ * parent pour une sous-équipe). `parentTeamId` rattache la team à une parente
+ * (NULL = racine) : elle doit appartenir à la même org. La portée du droit de
+ * création (qui peut créer sous quel parent) est vérifiée en amont par la route.
  */
 export async function createTeam(
   orgId: number,
   name: string,
   creatorId: number,
+  parentTeamId: number | null = null,
 ): Promise<TeamRow> {
+  if (parentTeamId !== null) {
+    const parent = await pool.query(
+      "SELECT 1 FROM teams WHERE id = $1 AND org_id = $2",
+      [parentTeamId, orgId],
+    );
+    if ((parent.rowCount ?? 0) === 0) {
+      throw new Error("Parent team introuvable dans l'organisation");
+    }
+  }
   const team = await pool.query(
-    `INSERT INTO teams (name, org_id)
-     SELECT $1, $3
+    `INSERT INTO teams (name, org_id, parent_team_id)
+     SELECT $1, $3, $4
      WHERE EXISTS (SELECT 1 FROM users WHERE id = $2 AND org_id = $3)
-     RETURNING id, name, org_id`,
-    [name, creatorId, orgId],
+     RETURNING id, name, org_id, parent_team_id`,
+    [name, creatorId, orgId, parentTeamId],
   );
   const teamRow = team.rows[0] as TeamRow | undefined;
   if (!teamRow) {
@@ -1081,13 +1111,19 @@ export async function renameTeam(
 ): Promise<TeamRow | null> {
   const result = await pool.query(
     `UPDATE teams SET name = $1 WHERE id = $2 AND org_id = $3
-     RETURNING id, name, org_id`,
+     RETURNING id, name, org_id, parent_team_id`,
     [name, teamId, orgId],
   );
   return result.rows[0] ?? null;
 }
 
-/** Deletes a team and its memberships/role rows. Returns false if not found in org. */
+/**
+ * Deletes a team and its memberships/role rows. Returns false if not found in org.
+ * Les sous-équipes ne sont PAS supprimées : elles sont réattachées au parent de
+ * la team supprimée (grand-parent, ou NULL → racine si la team supprimée était
+ * elle-même racine), ce qui préserve la chaîne de cascade tant qu'un ancêtre
+ * subsiste et évite les sous-équipes orphelines.
+ */
 export async function deleteTeam(
   teamId: number,
   orgId: number,
@@ -1103,6 +1139,13 @@ export async function deleteTeam(
       await client.query("ROLLBACK");
       return false;
     }
+    // Réattache les enfants au parent de la team supprimée (lu avant suppression).
+    await client.query(
+      `UPDATE teams
+       SET parent_team_id = (SELECT parent_team_id FROM teams WHERE id = $1)
+       WHERE parent_team_id = $1`,
+      [teamId],
+    );
     await client.query("DELETE FROM user_roles WHERE team_id = $1", [teamId]);
     await client.query("DELETE FROM team_users WHERE team_id = $1", [teamId]);
     await client.query("DELETE FROM channel_team_users WHERE team_id = $1", [
@@ -1156,6 +1199,78 @@ export async function getUserTeamRole(
     [userId, teamId, TEAM_ROLE_NAMES],
   );
   return (result.rows[0]?.name as TeamRole | undefined) ?? null;
+}
+
+/**
+ * Ids des teams qu'un utilisateur gère : toute team où il a un rôle
+ * team_owner/team_admin, plus tout leur sous-arbre (descendants via
+ * parent_team_id). Vide si l'utilisateur ne gère aucune team. N'inclut PAS la
+ * couverture org-wide d'un org_owner/org_admin : ceux-là sont traités à part
+ * (isOrgManager) car ils couvrent toutes les teams sans rôle team-scopé.
+ */
+export async function getManagedTeamIds(
+  userId: number,
+  orgId: number,
+): Promise<number[]> {
+  const result = await pool.query(
+    `WITH RECURSIVE managed_roots AS (
+       SELECT ur.team_id AS id
+       FROM user_roles ur
+       JOIN roles r ON r.id = ur.role_id
+       JOIN teams t ON t.id = ur.team_id
+       WHERE ur.user_id = $1 AND t.org_id = $2
+         AND r.name IN ('team_owner', 'team_admin')
+     ),
+     domain AS (
+       SELECT id FROM managed_roots
+       UNION
+       SELECT t.id FROM teams t
+       JOIN domain d ON t.parent_team_id = d.id
+       WHERE t.org_id = $2
+     )
+     SELECT id FROM domain`,
+    [userId, orgId],
+  );
+  return result.rows.map((r) => r.id as number);
+}
+
+/** Vrai si la team fait partie du domaine d'autorité (sous-arbre) de l'utilisateur. */
+export async function isTeamInUserDomain(
+  userId: number,
+  orgId: number,
+  teamId: number,
+): Promise<boolean> {
+  const ids = await getManagedTeamIds(userId, orgId);
+  return ids.includes(teamId);
+}
+
+/**
+ * Vrai si l'acteur a autorité sur l'utilisateur cible pour le peupler dans ses
+ * (sous-)teams : soit l'acteur est manager d'org (toute l'org), soit la cible
+ * est déjà membre d'au moins une team du sous-arbre que l'acteur gère.
+ */
+export async function canManageUser(
+  actorId: number,
+  orgId: number,
+  targetId: number,
+): Promise<boolean> {
+  const orgRole = await getUserOrgRole(actorId, orgId);
+  if (orgRole === "org_owner" || orgRole === "org_admin") {
+    const inOrg = await pool.query(
+      "SELECT 1 FROM users WHERE id = $1 AND org_id = $2",
+      [targetId, orgId],
+    );
+    return (inOrg.rowCount ?? 0) > 0;
+  }
+  const ids = await getManagedTeamIds(actorId, orgId);
+  if (ids.length === 0) return false;
+  const result = await pool.query(
+    `SELECT 1 FROM team_users
+     WHERE user_id = $1 AND team_id = ANY($2::int[])
+     LIMIT 1`,
+    [targetId, ids],
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 export interface TeamMember {
