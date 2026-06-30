@@ -1,7 +1,11 @@
 import { apiUrl } from "./api";
 import { authInit, jsonInit } from "./http";
 
-export type CanalRole = "canal_owner" | "canal_admin" | "canal_member";
+export type CanalRole =
+  | "canal_owner"
+  | "canal_admin"
+  | "canal_member"
+  | "canal_reader";
 
 export type Channel = {
   id: number;
@@ -133,7 +137,7 @@ export async function removeMember(
 export async function setMemberRole(
   channelId: number,
   userId: number,
-  role: "canal_admin" | "canal_member",
+  role: "canal_admin" | "canal_member" | "canal_reader",
 ): Promise<void> {
   await handle<unknown>(
     await fetch(

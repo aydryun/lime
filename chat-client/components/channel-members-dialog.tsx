@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, ArrowUp, UserPlus, X } from "lucide-react";
+import { UserPlus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   addMember,
@@ -25,7 +25,16 @@ const ROLE_LABEL: Record<CanalRole, string> = {
   canal_owner: "Propriétaire",
   canal_admin: "Admin",
   canal_member: "Membre",
+  canal_reader: "Lecteur",
 };
+
+/** Rôles que le propriétaire peut attribuer à un membre (hors propriété). */
+type AssignableRole = "canal_admin" | "canal_member" | "canal_reader";
+const ASSIGNABLE_ROLES: { value: AssignableRole; label: string }[] = [
+  { value: "canal_admin", label: "Admin" },
+  { value: "canal_member", label: "Membre" },
+  { value: "canal_reader", label: "Lecteur" },
+];
 
 export function ChannelMembersDialog({
   channelId,
@@ -40,7 +49,7 @@ export function ChannelMembersDialog({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const canAdd = callerRole !== "canal_member";
+  const canAdd = callerRole === "canal_owner" || callerRole === "canal_admin";
 
   useEffect(() => {
     let cancelled = false;
@@ -97,10 +106,7 @@ export function ChannelMembersDialog({
     }
   };
 
-  const handleSetRole = async (
-    userId: number,
-    role: "canal_admin" | "canal_member",
-  ) => {
+  const handleSetRole = async (userId: number, role: AssignableRole) => {
     try {
       await setMemberRole(channelId, userId, role);
       setMembers((prev) =>
@@ -115,10 +121,20 @@ export function ChannelMembersDialog({
     if (member.user_id === currentUserId) return false;
     if (member.role === "canal_owner") return false;
     if (callerRole === "canal_owner") return true;
-    if (callerRole === "canal_admin" && member.role === "canal_member")
+    if (
+      callerRole === "canal_admin" &&
+      (member.role === "canal_member" || member.role === "canal_reader")
+    )
       return true;
     return false;
   };
+
+  // Seul le propriétaire peut changer le rôle d'un autre membre (hors lui-même
+  // et hors propriétaire). Le backend applique la même règle.
+  const canChangeRole = (member: ChannelMember) =>
+    callerRole === "canal_owner" &&
+    member.role !== "canal_owner" &&
+    member.user_id !== currentUserId;
 
   return (
     <div
@@ -183,43 +199,36 @@ export function ChannelMembersDialog({
                           {m.user_id === currentUserId && " (vous)"}
                         </div>
                       </div>
-                      {actionable && (
+                      {(actionable || canChangeRole(m)) && (
                         <div className="flex items-center gap-1">
-                          {callerRole === "canal_owner" &&
-                            m.role === "canal_member" && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleSetRole(m.user_id, "canal_admin")
-                                }
-                                title="Promouvoir admin"
-                                aria-label={`Promouvoir ${m.username} admin`}
-                                className="p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                              >
-                                <ArrowUp className="w-4 h-4" />
-                              </button>
-                            )}
-                          {callerRole === "canal_owner" &&
-                            m.role === "canal_admin" && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleSetRole(m.user_id, "canal_member")
-                                }
-                                title="Rétrograder"
-                                aria-label={`Rétrograder ${m.username}`}
-                                className="p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                              >
-                                <ArrowDown className="w-4 h-4" />
-                              </button>
-                            )}
-                          <button
-                            type="button"
-                            onClick={() => handleRemove(m.user_id)}
-                            className="text-xs px-2 py-1 rounded-md text-destructive hover:bg-destructive/10"
-                          >
-                            Retirer
-                          </button>
+                          {canChangeRole(m) && (
+                            <select
+                              value={m.role}
+                              onChange={(e) =>
+                                handleSetRole(
+                                  m.user_id,
+                                  e.target.value as AssignableRole,
+                                )
+                              }
+                              aria-label={`Rôle de ${m.username}`}
+                              className="text-xs px-1.5 py-1 rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                            >
+                              {ASSIGNABLE_ROLES.map((r) => (
+                                <option key={r.value} value={r.value}>
+                                  {r.label}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {actionable && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemove(m.user_id)}
+                              className="text-xs px-2 py-1 rounded-md text-destructive hover:bg-destructive/10"
+                            >
+                              Retirer
+                            </button>
+                          )}
                         </div>
                       )}
                     </li>
