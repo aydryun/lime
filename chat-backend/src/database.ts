@@ -1134,6 +1134,26 @@ export async function deleteTeam(
   }
 }
 
+/**
+ * Vrai si l'utilisateur appartient à la team ET que cette team appartient à
+ * l'org donnée. Scopé à l'org pour éviter toute fuite inter-org si l'appelant
+ * n'a pas déjà vérifié le couple (teamId, orgId).
+ */
+export async function isTeamMemberInOrg(
+  userId: number,
+  teamId: number,
+  orgId: number,
+): Promise<boolean> {
+  const result = await pool.query(
+    `SELECT 1 FROM team_users tu
+     JOIN teams t ON t.id = tu.team_id
+     WHERE tu.user_id = $1 AND tu.team_id = $2 AND t.org_id = $3
+     LIMIT 1`,
+    [userId, teamId, orgId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 /** Returns the caller's team-scoped role, or null if not a member. */
 export async function getUserTeamRole(
   userId: number,

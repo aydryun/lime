@@ -5,7 +5,7 @@ import {
   deleteTeam,
   getTeamById,
   getUserOrgRole,
-  getUserTeamRole,
+  isTeamMemberInOrg,
   listTeamMembers,
   listTeams,
   listTeamsForMember,
@@ -59,7 +59,7 @@ async function canViewTeam(
   teamId: number,
 ): Promise<boolean> {
   if (await isOrgManager(userId, orgId)) return true;
-  return (await getUserTeamRole(userId, teamId)) !== null;
+  return isTeamMemberInOrg(userId, teamId, orgId);
 }
 
 // GET /api/teams — liste des teams de l'org
