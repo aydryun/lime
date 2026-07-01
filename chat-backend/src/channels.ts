@@ -40,6 +40,10 @@ function parseIdParam(value: string): number | null {
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
+// Plafond sur le peuplement initial en mode "members" : borne le nombre
+// d'appels canManageUser puis d'insertions déclenchés par une seule requête.
+const MAX_MEMBER_USER_IDS = 500;
+
 const DEFAULT_CANAL_ROLES: DefaultCanalRole[] = [
   "canal_admin",
   "canal_member",
@@ -145,13 +149,23 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
         res.status(400).json({ error: "user_ids requis" });
         return;
       }
+      if (raw.length > MAX_MEMBER_USER_IDS) {
+        res.status(400).json({ error: "Trop d'utilisateurs ciblés" });
+        return;
+      }
+      // Tous les éléments passent par le même chemin de validation
+      // (entier > 0), y compris les nombres JSON : -1 / 1.5 sont rejetés.
+      // On déduplique pour éviter les canManageUser / insertions répétés.
       const userIds: number[] = [];
+      const seen = new Set<number>();
       for (const v of raw) {
-        const id = typeof v === "number" ? v : parseIdParam(String(v));
+        const id = parseIdParam(String(v));
         if (!id) {
           res.status(400).json({ error: "user_ids invalide" });
           return;
         }
+        if (seen.has(id)) continue;
+        seen.add(id);
         userIds.push(id);
       }
       // Chaque cible doit être sous l'autorité de l'appelant.

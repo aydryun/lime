@@ -245,6 +245,7 @@ export async function listUserChannels(
        SELECT c.id, c.default_role_id
        FROM channels c
        WHERE c.is_org_wide = TRUE AND c.org_id = $3
+         AND EXISTS (SELECT 1 FROM users u WHERE u.id = $1 AND u.org_id = $3)
      ),
      explicit AS (
        SELECT ur.channel_id, r.name
@@ -920,10 +921,11 @@ export async function userHasPermission(
 ): Promise<boolean> {
   const result = await pool.query(
     `WITH RECURSIVE team_chain AS (
-       SELECT id, parent_team_id FROM teams WHERE id = $5
+       SELECT id, parent_team_id FROM teams WHERE id = $5 AND org_id = $4
        UNION ALL
        SELECT t.id, t.parent_team_id FROM teams t
        JOIN team_chain tc ON t.id = tc.parent_team_id
+       WHERE t.org_id = $4
      )
      SELECT 1
      FROM user_roles ur
