@@ -142,7 +142,8 @@ export async function sendInvitationEmail(args: {
       <p style="margin:0 0 16px;">Un compte a été créé pour vous dans l'organisation <strong>${escapeHtml(args.organisationName)}</strong>. Définissez votre mot de passe pour activer votre compte et commencer à discuter.</p>`,
     ctaLabel: "Activer mon compte",
     ctaHref: link,
-    footer: "Ce lien est valable 7 jours. Si vous n'êtes pas à l'origine de cette invitation, ignorez cet email.",
+    footer:
+      "Ce lien est valable 7 jours. Si vous n'êtes pas à l'origine de cette invitation, ignorez cet email.",
   });
   await send({ to: args.to, subject, html, text });
 }
