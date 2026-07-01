@@ -4,18 +4,42 @@
 
 Lime est une application de chat en temps réel construite avec une architecture client/serveur classique. Le backend expose une API REST et un endpoint WebSocket, tandis que le frontend est une application Next.js.
 
-```
-┌──────────────┐       HTTP / WS        ┌──────────────────┐
-│  chat-client │ ◄────────────────────► │   chat-backend   │
-│  (Next.js)   │                        │   (Express + WS) │
-└──────────────┘                        └────────┬─────────┘
-                                                 │
-                                    ┌────────────┼────────────┐
-                                    ▼                         ▼
-                             ┌─────────────┐          ┌─────────────┐
-                             │  PostgreSQL  │          │    Redis     │
-                             │ (persistance)│          │  (pub/sub)  │
-                             └─────────────┘          └─────────────┘
+```mermaid
+graph TB
+    subgraph Client["Client"]
+        Browser[Navigateur]
+    end
+
+    subgraph Frontend["Frontend — Next.js 16"]
+        PAGES[Pages<br/>Login / Chat / Settings]
+        UI[Composants React<br/>shadcn/ui + Radix UI]
+    end
+
+    subgraph Backend["Backend — Bun + Express"]
+        REST[API REST]
+        WS[WebSocket /ws]
+        AUTH[Auth JWT]
+        MOD[Modules<br/>Users / Channels<br/>Teams / Orgs]
+    end
+
+    subgraph Storage["Stockage"]
+        PG[(PostgreSQL 17)]
+        RD[(Redis<br/>Pub/Sub)]
+    end
+
+    subgraph Outils["Outils Dev"]
+        BIOME[Biome<br/>Lint + Format]
+        TEST[Bun Test<br/>Jest-compatible]
+    end
+
+    Client -->|HTTP| Frontend
+    Frontend -->|REST| REST
+    Client -->|WebSocket| WS
+    REST --> AUTH
+    REST --> MOD
+    MOD --> PG
+    REST -->|Publish| RD
+    WS -->|Subscribe| RD
 ```
 
 ## Stack technique
@@ -34,6 +58,16 @@ Lime est une application de chat en temps réel construite avec une architecture
 | **Biome** | Linter / formatter |
 | **node-pg-migrate** | Migrations SQL |
 
+#### Modules API REST
+
+| Route | Fichier | Rôle |
+|---|---|---|
+| `/api/auth` | `auth.ts` | Register, login, logout |
+| `/api/users` | `users.ts` | Profil utilisateur |
+| `/api/channels` | `channels.ts` | Canaux + messages |
+| `/api/org` | `organisations.ts` | Organisations |
+| `/api/teams` | `teams.ts` | Équipes |
+
 ### Frontend (`chat-client/`)
 
 | Technologie | Rôle |
@@ -41,7 +75,9 @@ Lime est une application de chat en temps réel construite avec une architecture
 | **Next.js 16** | Framework React (App Router) |
 | **React 19** | UI |
 | **Tailwind CSS 4** | Styles |
-| **Radix UI + shadcn/ui** | Composants |
+| **Radix UI + shadcn/ui** | Composants accessibles |
+| **lucide-react** | Icônes |
+| **class-variance-authority** | Variantes de composants |
 | **next-themes** | Thème clair/sombre |
 | **Biome** | Linter / formatter |
 
@@ -51,26 +87,39 @@ Lime est une application de chat en temps réel construite avec une architecture
 lime/
 ├── chat-backend/
 │   ├── src/
-│   │   ├── index.ts          # Point d'entrée Express + WebSocket
-│   │   ├── database.ts       # Requêtes PostgreSQL (Pool pg)
-│   │   ├── redis.ts          # Client Redis pub/sub
-│   │   ├── auth.ts           # Routes auth (register, login, logout)
-│   │   ├── middleware.ts      # Middlewares Express
-│   │   └── swagger.ts        # Définition OpenAPI
-│   ├── migrations/            # Migrations SQL (node-pg-migrate)
+│   │   ├── index.ts            # Point d'entrée Express + WebSocket
+│   │   ├── database.ts         # Requêtes PostgreSQL (Pool pg)
+│   │   ├── redis.ts            # Client Redis pub/sub
+│   │   ├── config.ts           # Configuration (JWT secret, etc.)
+│   │   ├── auth.ts             # Routes auth (register, login, logout)
+│   │   ├── users.ts            # Routes profil utilisateur
+│   │   ├── channels.ts         # Routes canaux + messages
+│   │   ├── organisations.ts    # Routes organisations
+│   │   ├── teams.ts            # Routes équipes
+│   │   ├── email.ts            # Envoi d'e-mails
+│   │   ├── middleware.ts        # Middlewares Express
+│   │   └── swagger.ts          # Définition OpenAPI
+│   ├── migrations/              # Migrations SQL (node-pg-migrate)
 │   └── package.json
 │
 ├── chat-client/
 │   ├── app/
-│   │   ├── layout.tsx         # Layout racine (thème, fonts)
-│   │   ├── page.tsx           # Page principale
-│   │   └── globals.css        # Styles Tailwind
-│   ├── components/            # Composants React (shadcn/ui)
+│   │   ├── layout.tsx           # Layout racine (thème, fonts)
+│   │   ├── page.tsx             # Page d'accueil / app
+│   │   ├── login/page.tsx       # Page de connexion
+│   │   ├── chat/page.tsx        # Page de chat
+│   │   ├── settings/page.tsx    # Page de paramètres
+│   │   └── globals.css          # Styles Tailwind
+│   ├── components/              # Composants React (shadcn/ui)
+│   ├── lib/                     # Utilitaires (cn, etc.)
+│   ├── types/                   # Types TypeScript
+│   ├── proxy.ts                 # Proxy de dev vers le backend
+│   ├── Dockerfile               # Build de production
 │   └── package.json
 │
-├── compose.yml                # Docker Compose (PostgreSQL, Redis, Adminer)
-├── .env                       # Variables d'environnement
-└── package.json               # Scripts racine (dev, migrate, seed, lint)
+├── compose.yml                  # Docker Compose (PostgreSQL, Redis, Adminer)
+├── .env                         # Variables d'environnement
+└── package.json                 # Scripts racine (dev, migrate, seed, lint)
 ```
 
 ## Base de données
@@ -80,9 +129,10 @@ Les migrations SQL se trouvent dans `chat-backend/migrations/`. Le schéma compl
 ### Tables principales
 
 - **users** — Utilisateurs (firstname, lastname, email, username, password)
-- **messages** — Messages dans un channel (content, is_updated, is_pinned)
+- **organisations** — Organisations (name, slug, company info)
+- **teams** — Équipes liées à une organisation
 - **channels** — Canaux de discussion
-- **teams** — Équipes
+- **messages** — Messages dans un channel (content, is_updated, is_pinned)
 - **documents** — Fichiers attachés aux messages (type, file_path, file_name, file_size)
 
 ### Tables de liaison
@@ -115,6 +165,7 @@ Ce mécanisme permet le scaling horizontal : plusieurs instances du backend peuv
 - **Register** `POST /api/auth/register` — Inscription (bcrypt hash du mot de passe)
 - **Login** `POST /api/auth/login` — Connexion, retourne un JWT (expire en 24h)
 - **Logout** `POST /api/auth/logout` — Déconnexion côté client
+- **Profil** `GET /api/users/me` — Récupération du profil utilisateur connecté
 
 ## Infrastructure locale
 
