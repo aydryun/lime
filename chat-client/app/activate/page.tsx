@@ -74,12 +74,9 @@ function ActivateForm() {
         </div>
 
         {success ? (
-          <p
-            role="status"
-            className="text-sm text-center rounded-md border border-border bg-muted px-3 py-2"
-          >
+          <output className="block text-sm text-center rounded-md border border-border bg-muted px-3 py-2">
             Compte activé ! Redirection vers la connexion…
-          </p>
+          </output>
         ) : (
           <form onSubmit={handleActivate} className="space-y-4">
             <div className="space-y-2">
