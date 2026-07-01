@@ -59,8 +59,8 @@ async function initDb() {
       [teamId, johnId, janeId],
     );
     await client.query(
-      `INSERT INTO channel_team_users (channel_id, team_id) VALUES ($1, $2)`,
-      [channelId, teamId],
+      `INSERT INTO channel_team_users (channel_id, team_id, org_id) VALUES ($1, $2, $3)`,
+      [channelId, teamId, orgId],
     );
     await client.query(
       `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3), ($4, $5, $6)`,
