@@ -263,8 +263,9 @@ canal concerné (et donc de la même organisation) :
 
 ## Documentation interactive
 
-- **`GET /api/docs`** — Swagger UI (OpenAPI 3.0). Couvre actuellement les routes `Auth` et
-  `Users`. Ce fichier Markdown reste la référence complète.
+- **`GET /api/docs`** — Swagger UI (OpenAPI 3.0), généré depuis `chat-backend/src/swagger.ts`.
+  Couvre l'ensemble des routes REST (`Auth`, `Users`, `Organisation`, `Teams`, `Channels`).
+  Le WebSocket temps réel (`/ws`) n'y figure pas — voir la section ci-dessus.
 
 ## Hors périmètre API actuel
 

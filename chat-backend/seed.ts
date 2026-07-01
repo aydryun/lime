@@ -92,139 +92,109 @@ async function seed() {
       console.log(`✓ Rôle créé : ${result.rows[0].name}`);
     }
 
-    // --- Permissions ---
-    const permissions = [
-      { category: "message", action: "GET" },
-      { category: "message", action: "CREATE" },
-      { category: "message", action: "UPDATE" },
-      { category: "message", action: "DELETE" },
-      { category: "channel", action: "GET" },
-      { category: "channel", action: "CREATE" },
-      { category: "channel", action: "UPDATE" },
-      { category: "channel", action: "DELETE" },
-      { category: "team", action: "GET" },
-      { category: "team", action: "CREATE" },
-      { category: "team", action: "UPDATE" },
-      { category: "team", action: "DELETE" },
-    ];
+    // --- Permissions & role_permissions ---
+    // Volontairement NON gérées ici : le mapping rôles ↔ permissions est seedé
+    // par les migrations (019 → 022), source unique de vérité du RBAC. Le seeder
+    // en base éviterait notamment d'accorder par erreur channel:CREATE au rôle
+    // `member` (ce qui laisserait un membre simple créer des canaux org-wide).
 
-    const permissionIds: number[] = [];
-
-    for (const p of permissions) {
-      const result = await client.query(
-        `INSERT INTO permissions (category, action)
-         VALUES ($1, $2::permission_action)
-         ON CONFLICT (category, action) DO UPDATE SET category = EXCLUDED.category
-         RETURNING id`,
-        [p.category, p.action],
-      );
-      permissionIds.push(result.rows[0].id);
-    }
-    console.log(`✓ ${permissions.length} permissions créées`);
-
-    // --- Role permissions ---
-    // Admin : toutes les permissions
-    for (const pid of permissionIds) {
-      await client.query(
-        `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)`,
-        [roleIds.admin, pid],
-      );
-    }
-
-    // Moderator : GET + CREATE + UPDATE (pas DELETE)
-    for (const pid of permissionIds) {
-      const perm = permissions[permissionIds.indexOf(pid)];
-      if (perm.action !== "DELETE") {
-        await client.query(
-          `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)
-           ON CONFLICT (role_id, permission_id) DO NOTHING`,
-          [roleIds.moderator, pid],
-        );
-      }
-    }
-
-    // Member : GET + CREATE uniquement
-    for (const pid of permissionIds) {
-      const perm = permissions[permissionIds.indexOf(pid)];
-      if (perm.action === "GET" || perm.action === "CREATE") {
-        await client.query(
-          `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)
-           ON CONFLICT (role_id, permission_id) DO NOTHING`,
-          [roleIds.member, pid],
-        );
-      }
-    }
-    console.log("✓ Permissions attribuées aux rôles");
-
-    // --- Teams ---
-    const teamResult = await client.query(
+    // --- Équipes (hiérarchie : une équipe racine + une sous-équipe) ---
+    const rootTeamRes = await client.query(
       `INSERT INTO teams (name, org_id) VALUES ($1, $2) RETURNING id`,
       ["Équipe Lime", orgId],
     );
-    const teamId = teamResult.rows[0].id;
-    console.log("✓ Team créée : Équipe Lime");
+    const teamId = rootTeamRes.rows[0].id;
+    const devTeamRes = await client.query(
+      `INSERT INTO teams (name, org_id, parent_team_id) VALUES ($1, $2, $3) RETURNING id`,
+      ["Dev", orgId, teamId],
+    );
+    const devTeamId = devTeamRes.rows[0].id;
+    console.log("✓ Équipes créées : Équipe Lime + sous-équipe Dev");
 
-    // --- Team users ---
-    for (const username of Object.keys(userIds)) {
+    // --- Membres d'équipe + rôles team-scopés ---
+    // Équipe Lime : admin=owner, julie=admin, lucas=member.
+    // Sous-équipe Dev : lucas=owner — illustre la cascade (admin, org_owner ET
+    // team_owner du parent, gère aussi Dev sans en être membre direct).
+    const teamMemberships = [
+      { team: teamId, user: "admin", role: "team_owner" },
+      { team: teamId, user: "julie", role: "team_admin" },
+      { team: teamId, user: "lucas", role: "team_member" },
+      { team: devTeamId, user: "lucas", role: "team_owner" },
+    ];
+    for (const m of teamMemberships) {
       await client.query(
-        `INSERT INTO team_users (team_id, user_id) VALUES ($1, $2)`,
-        [teamId, userIds[username]],
+        `INSERT INTO team_users (team_id, user_id) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`,
+        [m.team, userIds[m.user]],
+      );
+      await client.query(
+        `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
+        [userIds[m.user], roleIds[m.role], m.team],
       );
     }
-    console.log("✓ Utilisateurs ajoutés à la team");
+    console.log("✓ Membres et rôles d'équipe attribués");
 
-    // --- Channels ---
-    const channelNames = ["général", "random", "dev"];
+    // --- Canaux ---
+    // "général" : canal org-wide (tous les membres de l'org y accèdent) ;
+    // "random"  : lié à l'équipe racine (membres directs) ;
+    // "dev"     : lié à l'équipe racine ET étendu au sous-arbre
+    //             (include_descendants) → les membres de la sous-équipe Dev y
+    //             accèdent aussi.
+    const canalMemberRoleId = roleIds.canal_member;
     const channelIds: Record<string, number> = {};
-
-    for (const name of channelNames) {
-      const result = await client.query(
-        `INSERT INTO channels (name, org_id) VALUES ($1, $2) RETURNING id`,
-        [name, orgId],
-      );
-      channelIds[name] = result.rows[0].id;
-    }
-    console.log(`✓ Channels créés : ${channelNames.join(", ")}`);
-
-    // --- Channel team users (la team a accès à tous les channels) ---
-    for (const name of channelNames) {
+    channelIds.général = (
       await client.query(
-        `INSERT INTO channel_team_users (channel_id, team_id, org_id) VALUES ($1, $2, $3)`,
-        [channelIds[name], teamId, orgId],
+        `INSERT INTO channels (name, org_id, is_org_wide, default_role_id)
+         VALUES ($1, $2, TRUE, $3) RETURNING id`,
+        ["général", orgId, canalMemberRoleId],
+      )
+    ).rows[0].id;
+    channelIds.random = (
+      await client.query(
+        `INSERT INTO channels (name, org_id) VALUES ($1, $2) RETURNING id`,
+        ["random", orgId],
+      )
+    ).rows[0].id;
+    channelIds.dev = (
+      await client.query(
+        `INSERT INTO channels (name, org_id) VALUES ($1, $2) RETURNING id`,
+        ["dev", orgId],
+      )
+    ).rows[0].id;
+    console.log("✓ Canaux créés : général (org-wide), random, dev");
+
+    // --- Liens d'équipe vers les canaux ---
+    await client.query(
+      `INSERT INTO channel_team_users (channel_id, team_id, include_descendants, default_role_id, org_id)
+       VALUES ($1, $2, FALSE, $3, $4) ON CONFLICT DO NOTHING`,
+      [channelIds.random, teamId, canalMemberRoleId, orgId],
+    );
+    await client.query(
+      `INSERT INTO channel_team_users (channel_id, team_id, include_descendants, default_role_id, org_id)
+       VALUES ($1, $2, TRUE, $3, $4) ON CONFLICT DO NOTHING`,
+      [channelIds.dev, teamId, canalMemberRoleId, orgId],
+    );
+    console.log("✓ Équipe liée aux canaux (dev étendu au sous-arbre)");
+
+    // --- Rôles canal explicites ---
+    // Un propriétaire par canal + un lecteur seule (canal_reader) pour la démo.
+    const channelRoles = [
+      { channel: channelIds.général, user: "admin", role: "canal_owner" },
+      { channel: channelIds.random, user: "julie", role: "canal_owner" },
+      { channel: channelIds.random, user: "lucas", role: "canal_reader" },
+      { channel: channelIds.dev, user: "lucas", role: "canal_owner" },
+      { channel: channelIds.dev, user: "julie", role: "canal_admin" },
+    ];
+    for (const cr of channelRoles) {
+      await client.query(
+        `INSERT INTO user_roles (user_id, role_id, channel_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
+        [userIds[cr.user], roleIds[cr.role], cr.channel],
       );
     }
-    console.log("✓ Team liée aux channels");
-
-    // --- Channel roles per user ---
-    // Un owner différent par canal pour faciliter les tests.
-    const channelOwners: Record<string, string> = {
-      général: "admin",
-      random: "julie",
-      dev: "lucas",
-    };
-    const channelAdmins: Record<string, string[]> = {
-      général: ["julie"],
-      random: [],
-      dev: [],
-    };
-
-    for (const name of channelNames) {
-      const ownerUsername = channelOwners[name];
-      const adminUsernames = channelAdmins[name] ?? [];
-      for (const username of Object.keys(userIds)) {
-        let roleName: "canal_owner" | "canal_admin" | "canal_member";
-        if (username === ownerUsername) roleName = "canal_owner";
-        else if (adminUsernames.includes(username)) roleName = "canal_admin";
-        else roleName = "canal_member";
-        await client.query(
-          `INSERT INTO user_roles (user_id, role_id, channel_id)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
-          [userIds[username], roleIds[roleName], channelIds[name]],
-        );
-      }
-    }
-    console.log("✓ Rôles canal attribués");
+    console.log("✓ Rôles canal attribués (dont un canal_reader)");
 
     // --- Messages ---
     const messages = [
@@ -305,29 +275,6 @@ async function seed() {
       [userIds.lucas, roleIds.member, orgId],
     );
     console.log("✓ Rôles org attribués");
-
-    // --- User roles ---
-    // Admin : rôle admin sur la team
-    await client.query(
-      `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
-      [userIds.admin, roleIds.admin, teamId],
-    );
-
-    // Julie : moderator sur la team
-    await client.query(
-      `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
-      [userIds.julie, roleIds.moderator, teamId],
-    );
-
-    // Lucas : member sur la team
-    await client.query(
-      `INSERT INTO user_roles (user_id, role_id, team_id) VALUES ($1, $2, $3)
-       ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
-      [userIds.lucas, roleIds.member, teamId],
-    );
-    console.log("✓ Rôles attribués aux utilisateurs");
 
     await client.query("COMMIT");
     console.log("\n✓ Seed terminé");
