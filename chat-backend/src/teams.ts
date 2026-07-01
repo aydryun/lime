@@ -1,11 +1,13 @@
 import { Router } from "express";
 import {
   addTeamMember,
+  canManageUser,
   createTeam,
   deleteTeam,
   getTeamById,
   getUserOrgRole,
   getUserTeamRole,
+  isTeamInUserDomain,
   isTeamMemberInOrg,
   listTeamMembers,
   listTeams,
@@ -62,7 +64,9 @@ async function canViewTeam(
   teamId: number,
 ): Promise<boolean> {
   if (await isOrgManager(userId, orgId)) return true;
-  return isTeamMemberInOrg(userId, teamId, orgId);
+  // Membre direct, ou manager de la team par cascade (elle est dans son sous-arbre).
+  if (await isTeamMemberInOrg(userId, teamId, orgId)) return true;
+  return isTeamInUserDomain(userId, orgId, teamId);
 }
 
 // GET /api/teams — liste des teams de l'org
@@ -88,7 +92,11 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/teams — crée une team vide (le créateur n'en devient pas membre)
+// POST /api/teams — crée une team vide (le créateur n'en devient pas membre).
+// Avec parent_team_id : crée une sous-équipe. La permission team:CREATE est
+// vérifiée AU SCOPE du parent (canTeam cascade) → un team_owner/team_admin du
+// parent (ou d'un de ses ancêtres) peut créer la sous-équipe ; un manager d'org
+// peut créer partout. Sans parent (équipe racine), seul le scope org passe.
 router.post("/", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   const orgId = req.orgId;
@@ -101,12 +109,28 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
     res.status(400).json({ error: "Nom d'équipe invalide" });
     return;
   }
+  const rawParent = req.body?.parent_team_id;
+  let parentTeamId: number | null = null;
+  if (rawParent !== undefined && rawParent !== null) {
+    parentTeamId = parseIdParam(String(rawParent));
+    if (!parentTeamId) {
+      res.status(400).json({ error: "parent_team_id invalide" });
+      return;
+    }
+  }
   try {
-    if (!(await canTeam(userId, orgId, null, "CREATE"))) {
+    if (parentTeamId !== null) {
+      const parent = await getTeamById(parentTeamId, orgId);
+      if (!parent) {
+        res.status(404).json({ error: "Équipe parente introuvable" });
+        return;
+      }
+    }
+    if (!(await canTeam(userId, orgId, parentTeamId, "CREATE"))) {
       res.status(403).json({ error: "Permission refusée" });
       return;
     }
-    const team = await createTeam(orgId, name, userId);
+    const team = await createTeam(orgId, name, userId, parentTeamId);
     res.status(201).json(team);
   } catch (error) {
     console.error("Create team error:", error);
@@ -277,6 +301,18 @@ router.post("/:id/members", authenticate, async (req: AuthRequest, res) => {
     }
     if (!(await canTeam(userId, orgId, teamId, "UPDATE"))) {
       res.status(403).json({ error: "Permission refusée" });
+      return;
+    }
+    // Recrutement borné au sous-arbre : un manager d'équipe ne peut ajouter que
+    // des membres déjà sous son autorité. Seul un manager d'org fait entrer un
+    // nouvel utilisateur de l'org dans la hiérarchie.
+    if (
+      !(await isOrgManager(userId, orgId)) &&
+      !(await canManageUser(userId, orgId, targetId))
+    ) {
+      res.status(403).json({
+        error: "Cet utilisateur n'est pas dans votre périmètre d'équipe",
+      });
       return;
     }
     const result = await addTeamMember(teamId, orgId, targetId, role);
