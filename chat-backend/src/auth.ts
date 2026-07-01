@@ -13,18 +13,18 @@ const JWT_EXPIRES_IN = "24h";
 const ACTIVATION_EXPIRES_IN = "7d";
 const MIN_PASSWORD_LENGTH = 8;
 
-/** Signs a short-lived token used in the invitation email to set the password. */
+/** Signe un token à courte durée de vie, utilisé dans l'email d'invitation pour définir le mot de passe. */
 export function createActivationToken(userId: number): string {
   return jwt.sign({ userId, purpose: "activation" }, JWT_SECRET, {
     expiresIn: ACTIVATION_EXPIRES_IN,
   });
 }
 
-/** Name of the HttpOnly cookie holding the JWT session token. */
+/** Nom du cookie HttpOnly contenant le token de session JWT. */
 export const TOKEN_COOKIE = "chat_token";
 const TOKEN_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
-/** Sets the auth JWT as an HttpOnly cookie on the response. */
+/** Pose le JWT d'authentification comme cookie HttpOnly sur la réponse. */
 function setAuthCookie(res: Response, token: string): void {
   res.cookie(TOKEN_COOKIE, token, {
     httpOnly: true,
@@ -34,7 +34,7 @@ function setAuthCookie(res: Response, token: string): void {
   });
 }
 
-/** Removes the auth cookie from the client. */
+/** Retire le cookie d'authentification côté client. */
 function clearAuthCookie(res: Response): void {
   res.clearCookie(TOKEN_COOKIE, { ...cookieSiteOptions(), path: "/" });
 }

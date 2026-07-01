@@ -57,7 +57,7 @@ async function handle<T>(res: Response): Promise<T> {
       if (body?.error) message = body.error;
       if (body?.code) code = body.code;
     } catch {
-      // ignore parse errors
+      // ignore les erreurs de parsing
     }
     throw new ApiError(message, res.status, code);
   }

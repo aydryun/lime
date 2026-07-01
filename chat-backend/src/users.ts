@@ -26,7 +26,7 @@ function cleanString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-// PUT /api/users/me — update current user profile
+// PUT /api/users/me — met à jour le profil de l'utilisateur connecté
 router.put("/me", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   if (!userId) {
@@ -82,7 +82,7 @@ router.put("/me", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// PUT /api/users/me/password — change current user password
+// PUT /api/users/me/password — change le mot de passe de l'utilisateur connecté
 router.put("/me/password", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   if (!userId) {

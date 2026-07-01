@@ -177,6 +177,10 @@ Docker Compose fournit les services :
 | Redis | 6379 | Pub/Sub temps réel |
 | Adminer | 8081 | Interface web pour la DB |
 
+## Infrastructure de production
+
+En production, le frontend, le backend et Redis sont hébergés sur **Render**, et la base PostgreSQL est managée par **Neon** (externe à Render). Configuration détaillée (URLs, variables d'environnement, migrations au démarrage) : [deploiement.md](deploiement.md).
+
 ## Historique des choix techniques
 
 Les détails sur les technologies évaluées avant d'arriver à cette stack (SurrealDB, SpacetimeDB) sont documentés dans [architecture-legacy.md](architecture-legacy.md).

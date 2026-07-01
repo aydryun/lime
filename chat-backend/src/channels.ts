@@ -62,7 +62,7 @@ function parseDefaultRole(value: unknown): DefaultCanalRole | null {
   return null;
 }
 
-// GET /api/channels — list channels the current user belongs to
+// GET /api/channels — liste les canaux auxquels l'utilisateur courant appartient
 router.get("/", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   const orgId = req.orgId;
@@ -191,7 +191,7 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// PATCH /api/channels/:id — rename (owner only)
+// PATCH /api/channels/:id — renomme (propriétaire uniquement)
 router.patch("/:id", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   const orgId = req.orgId;
@@ -233,7 +233,7 @@ router.patch("/:id", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// DELETE /api/channels/:id — owner deletes the channel for everyone
+// DELETE /api/channels/:id — le propriétaire supprime le canal pour tout le monde
 router.delete("/:id", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   const orgId = req.orgId;
@@ -270,7 +270,7 @@ router.delete("/:id", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/channels/:id/members — list members with roles
+// GET /api/channels/:id/members — liste les membres avec leurs rôles
 router.get("/:id/members", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   const orgId = req.orgId;
@@ -299,7 +299,7 @@ router.get("/:id/members", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// GET /api/channels/:id/non-members?q=... — users not in the channel (member picker)
+// GET /api/channels/:id/non-members?q=... — utilisateurs hors du canal (sélecteur de membres)
 router.get("/:id/non-members", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   const orgId = req.orgId;
@@ -329,7 +329,7 @@ router.get("/:id/non-members", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/channels/:id/members — add a member (owner or admin)
+// POST /api/channels/:id/members — ajoute un membre (propriétaire ou admin)
 router.post("/:id/members", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   const orgId = req.orgId;
@@ -375,7 +375,7 @@ router.post("/:id/members", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// PATCH /api/channels/:id/members/:userId — promote / demote (owner only)
+// PATCH /api/channels/:id/members/:userId — promeut / rétrograde (propriétaire uniquement)
 router.patch(
   "/:id/members/:userId",
   authenticate,
@@ -431,7 +431,7 @@ router.patch(
   },
 );
 
-// POST /api/channels/:id/transfer — transfer ownership to userId, current owner leaves
+// POST /api/channels/:id/transfer — transfère la propriété à userId, le propriétaire actuel quitte
 router.post("/:id/transfer", authenticate, async (req: AuthRequest, res) => {
   const callerId = req.userId;
   const orgId = req.orgId;
@@ -471,7 +471,7 @@ router.post("/:id/transfer", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// DELETE /api/channels/:id/members/:userId — remove a member (rules below)
+// DELETE /api/channels/:id/members/:userId — retire un membre (règles ci-dessous)
 router.delete(
   "/:id/members/:userId",
   authenticate,
@@ -501,8 +501,8 @@ router.delete(
       }
       const isSelf = callerId === targetId;
       if (isSelf) {
-        // Leaving: an owner can't leave without transferring or deleting first
-        // (only if there are other canal_* members).
+        // Départ : un propriétaire ne peut pas partir sans d'abord transférer ou
+        // supprimer (seulement s'il reste d'autres membres canal_*).
         if (callerRole === "canal_owner") {
           const members = await listChannelMembers(id);
           if (members.some((m) => m.user_id !== callerId)) {
@@ -513,13 +513,13 @@ router.delete(
             });
             return;
           }
-          // Owner alone — leaving means deleting the channel.
+          // Propriétaire seul — partir revient à supprimer le canal.
           await deleteChannel(id);
           res.json({ message: "Canal supprimé" });
           return;
         }
       } else {
-        // Removing someone else: owner can remove anyone; admin only canal_member.
+        // Retirer quelqu'un d'autre : le propriétaire peut retirer n'importe qui ; un admin seulement un canal_member.
         if (callerRole !== "canal_owner" && callerRole !== "canal_admin") {
           res.status(403).json({ error: "Accès refusé" });
           return;
@@ -550,7 +550,7 @@ router.delete(
   },
 );
 
-// GET /api/channels/:id/messages — list channel messages
+// GET /api/channels/:id/messages — liste les messages du canal
 router.get("/:id/messages", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   const orgId = req.orgId;
@@ -579,7 +579,7 @@ router.get("/:id/messages", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// POST /api/channels/:id/messages — post a message in a channel
+// POST /api/channels/:id/messages — poste un message dans un canal
 router.post("/:id/messages", authenticate, async (req: AuthRequest, res) => {
   const userId = req.userId;
   const orgId = req.orgId;
