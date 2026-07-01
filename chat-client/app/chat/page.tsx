@@ -1,5 +1,6 @@
 "use client";
 
+import EmojiPicker, { EmojiStyle } from "emoji-picker-react";
 import {
   DoorOpen,
   Hash,
@@ -9,6 +10,7 @@ import {
   Plus,
   Send,
   Settings,
+  Smile,
   Trash2,
   Users,
   X,
@@ -50,6 +52,7 @@ export default function ChatPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -510,6 +513,7 @@ export default function ChatPage() {
               type="text"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              aria-label="Ecrire un message"
               disabled={
                 !activeChannel ||
                 sending === true ||
@@ -524,6 +528,33 @@ export default function ChatPage() {
               }
               className="flex-1 bg-transparent border-none outline-none px-3 text-foreground placeholder:text-muted-foreground h-10 disabled:opacity-50"
             />
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                disabled={
+                  !activeChannel ||
+                  sending === true ||
+                  activeChannel.my_role === "canal_reader"
+                }
+                aria-label="Ajouter un emoji"
+                className="w-10 h-10 rounded-md hover:bg-muted flex items-center justify-center shrink-0 disabled:opacity-50 transition-colors"
+              >
+                <Smile className="w-4 h-4" />
+              </button>
+              {showEmojiPicker && (
+                <div className="absolute bottom-full mb-2 right-0 z-50">
+                  <EmojiPicker
+                    emojiStyle={EmojiStyle.NATIVE}
+                    lazyLoadEmojis={true}
+                    onEmojiClick={(emojiData) => {
+                      setDraft((prev) => prev + emojiData.emoji);
+                      setShowEmojiPicker(false);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
             <button
               type="submit"
               disabled={
