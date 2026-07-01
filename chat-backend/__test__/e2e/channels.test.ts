@@ -48,7 +48,9 @@ describe("POST /channels", () => {
       body: json({ name: "mon-canal-privé", mode: "private" }),
     });
     expect(res.status).toBe(201);
-    expect(((await res.json()) as { my_role: string }).my_role).toBe("canal_owner");
+    expect(((await res.json()) as { my_role: string }).my_role).toBe(
+      "canal_owner",
+    );
   });
 
   test("un membre simple ne peut pas créer de canal org-wide (403)", async () => {
@@ -71,7 +73,11 @@ describe("POST /channels", () => {
     // Lucas est team_owner de dev → channel:CREATE couvre dev.
     const res = await api("/channels", lucasTok, {
       method: "POST",
-      body: json({ name: "canal-dev", mode: "team", team_id: fixtures.teams.dev }),
+      body: json({
+        name: "canal-dev",
+        mode: "team",
+        team_id: fixtures.teams.dev,
+      }),
     });
     expect(res.status).toBe(201);
   });
@@ -129,7 +135,10 @@ describe("DELETE /channels/:id", () => {
 
 describe("membres du canal", () => {
   test("GET members pour un membre du canal (200)", async () => {
-    const res = await api(`/channels/${fixtures.channels.general}/members`, adminTok);
+    const res = await api(
+      `/channels/${fixtures.channels.general}/members`,
+      adminTok,
+    );
     expect(res.status).toBe(200);
     expect(Array.isArray(await res.json())).toBe(true);
   });
@@ -178,19 +187,27 @@ describe("membres du canal", () => {
       method: "POST",
       body: json({ userId: fixtures.users.julie.id }),
     });
-    const res = await api(`/channels/${id}/members/${fixtures.users.julie.id}`, lucasTok, {
-      method: "PATCH",
-      body: json({ role: "canal_admin" }),
-    });
+    const res = await api(
+      `/channels/${id}/members/${fixtures.users.julie.id}`,
+      lucasTok,
+      {
+        method: "PATCH",
+        body: json({ role: "canal_admin" }),
+      },
+    );
     expect(res.status).toBe(200);
   });
 
   test("on ne peut pas changer le rôle du propriétaire (409)", async () => {
     const id = await createPrivate(lucasTok);
-    const res = await api(`/channels/${id}/members/${fixtures.users.lucas.id}`, lucasTok, {
-      method: "PATCH",
-      body: json({ role: "canal_admin" }),
-    });
+    const res = await api(
+      `/channels/${id}/members/${fixtures.users.lucas.id}`,
+      lucasTok,
+      {
+        method: "PATCH",
+        body: json({ role: "canal_admin" }),
+      },
+    );
     expect(res.status).toBe(409);
   });
 
@@ -200,10 +217,14 @@ describe("membres du canal", () => {
       method: "POST",
       body: json({ userId: fixtures.users.julie.id }),
     });
-    const res = await api(`/channels/${id}/members/${fixtures.users.julie.id}`, lucasTok, {
-      method: "PATCH",
-      body: json({ role: "canal_god" }),
-    });
+    const res = await api(
+      `/channels/${id}/members/${fixtures.users.julie.id}`,
+      lucasTok,
+      {
+        method: "PATCH",
+        body: json({ role: "canal_god" }),
+      },
+    );
     expect(res.status).toBe(400);
   });
 
@@ -213,17 +234,25 @@ describe("membres du canal", () => {
       method: "POST",
       body: json({ userId: fixtures.users.julie.id }),
     });
-    const res = await api(`/channels/${id}/members/${fixtures.users.julie.id}`, lucasTok, {
-      method: "DELETE",
-    });
+    const res = await api(
+      `/channels/${id}/members/${fixtures.users.julie.id}`,
+      lucasTok,
+      {
+        method: "DELETE",
+      },
+    );
     expect(res.status).toBe(200);
   });
 
   test("retirer un non-membre (404)", async () => {
     const id = await createPrivate(lucasTok);
-    const res = await api(`/channels/${id}/members/${fixtures.users.julie.id}`, lucasTok, {
-      method: "DELETE",
-    });
+    const res = await api(
+      `/channels/${id}/members/${fixtures.users.julie.id}`,
+      lucasTok,
+      {
+        method: "DELETE",
+      },
+    );
     expect(res.status).toBe(404);
   });
 
@@ -233,17 +262,25 @@ describe("membres du canal", () => {
       method: "POST",
       body: json({ userId: fixtures.users.julie.id }),
     });
-    const res = await api(`/channels/${id}/members/${fixtures.users.lucas.id}`, lucasTok, {
-      method: "DELETE",
-    });
+    const res = await api(
+      `/channels/${id}/members/${fixtures.users.lucas.id}`,
+      lucasTok,
+      {
+        method: "DELETE",
+      },
+    );
     expect(res.status).toBe(409);
   });
 
   test("un propriétaire seul qui part supprime le canal (200)", async () => {
     const id = await createPrivate(lucasTok);
-    const res = await api(`/channels/${id}/members/${fixtures.users.lucas.id}`, lucasTok, {
-      method: "DELETE",
-    });
+    const res = await api(
+      `/channels/${id}/members/${fixtures.users.lucas.id}`,
+      lucasTok,
+      {
+        method: "DELETE",
+      },
+    );
     expect(res.status).toBe(200);
   });
 });
@@ -292,7 +329,10 @@ describe("POST /channels/:id/transfer", () => {
 
 describe("messages", () => {
   test("un membre lit les messages (200)", async () => {
-    const res = await api(`/channels/${fixtures.channels.general}/messages`, adminTok);
+    const res = await api(
+      `/channels/${fixtures.channels.general}/messages`,
+      adminTok,
+    );
     expect(res.status).toBe(200);
     expect(Array.isArray(await res.json())).toBe(true);
   });
@@ -304,35 +344,51 @@ describe("messages", () => {
   });
 
   test("un membre poste un message (201)", async () => {
-    const res = await api(`/channels/${fixtures.channels.general}/messages`, lucasTok, {
-      method: "POST",
-      body: json({ content: "Bonjour depuis les tests" }),
-    });
+    const res = await api(
+      `/channels/${fixtures.channels.general}/messages`,
+      lucasTok,
+      {
+        method: "POST",
+        body: json({ content: "Bonjour depuis les tests" }),
+      },
+    );
     expect(res.status).toBe(201);
   });
 
   test("un lecteur seule ne peut pas écrire (403)", async () => {
     // Lucas est canal_reader de random.
-    const res = await api(`/channels/${fixtures.channels.random}/messages`, lucasTok, {
-      method: "POST",
-      body: json({ content: "je ne devrais pas pouvoir" }),
-    });
+    const res = await api(
+      `/channels/${fixtures.channels.random}/messages`,
+      lucasTok,
+      {
+        method: "POST",
+        body: json({ content: "je ne devrais pas pouvoir" }),
+      },
+    );
     expect(res.status).toBe(403);
   });
 
   test("contenu vide (400)", async () => {
-    const res = await api(`/channels/${fixtures.channels.general}/messages`, lucasTok, {
-      method: "POST",
-      body: json({ content: "   " }),
-    });
+    const res = await api(
+      `/channels/${fixtures.channels.general}/messages`,
+      lucasTok,
+      {
+        method: "POST",
+        body: json({ content: "   " }),
+      },
+    );
     expect(res.status).toBe(400);
   });
 
   test("message trop long (400)", async () => {
-    const res = await api(`/channels/${fixtures.channels.general}/messages`, lucasTok, {
-      method: "POST",
-      body: json({ content: "x".repeat(4001) }),
-    });
+    const res = await api(
+      `/channels/${fixtures.channels.general}/messages`,
+      lucasTok,
+      {
+        method: "POST",
+        body: json({ content: "x".repeat(4001) }),
+      },
+    );
     expect(res.status).toBe(400);
   });
 });

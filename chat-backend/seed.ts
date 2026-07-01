@@ -349,7 +349,14 @@ export async function seed(options: SeedOptions = {}): Promise<SeedResult> {
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
          RETURNING id`,
-        ["Mallory", "Owner", "mallory@beta.test", "mallory", malloryHash, betaOrgId],
+        [
+          "Mallory",
+          "Owner",
+          "mallory@beta.test",
+          "mallory",
+          malloryHash,
+          betaOrgId,
+        ],
       )
     ).rows[0].id as number;
     await client.query(

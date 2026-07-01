@@ -29,7 +29,9 @@ describe("validateOrgFields()", () => {
   });
 
   test("un autre champ vidé (null) est effacé", () => {
-    expect(fieldsOf(validateOrgFields({ telephone: null })).telephone).toBeNull();
+    expect(
+      fieldsOf(validateOrgFields({ telephone: null })).telephone,
+    ).toBeNull();
   });
 
   test("SIREN à 9 chiffres accepté", () => {
@@ -51,9 +53,9 @@ describe("validateOrgFields()", () => {
   });
 
   test("email de contact validé", () => {
-    expect(fieldsOf(validateOrgFields({ email: "contact@acme.fr" })).email).toBe(
-      "contact@acme.fr",
-    );
+    expect(
+      fieldsOf(validateOrgFields({ email: "contact@acme.fr" })).email,
+    ).toBe("contact@acme.fr");
     expect("error" in validateOrgFields({ email: "pas-un-email" })).toBe(true);
   });
 

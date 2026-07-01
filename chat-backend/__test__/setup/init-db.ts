@@ -1,6 +1,6 @@
 import { $ } from "bun";
-import pool from "../../src/database.js";
 import { seed } from "../../seed.js";
+import pool from "../../src/database.js";
 
 // Fixtures partagées avec les tests e2e (ids + identifiants), écrites à chaque
 // préparation de la BDD et lues par __test__/e2e/helpers.ts.

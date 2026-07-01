@@ -70,7 +70,10 @@ describe("isolation multi-tenant : Lime -> Beta", () => {
   test("modifier une équipe d'un autre tenant (404)", async () => {
     const res = await fetch(`${API_URL}/teams/${fixtures.beta.teams.root}`, {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${lime}`, "Content-Type": "application/json" },
+      headers: {
+        Authorization: `Bearer ${lime}`,
+        "Content-Type": "application/json",
+      },
       body: json({ name: "hijack" }),
     });
     expect(res.status).toBe(404);
@@ -108,10 +111,16 @@ describe("isolation multi-tenant : Lime -> Beta", () => {
   });
 
   test("les ressources de Beta n'apparaissent pas dans les listes de Lime", async () => {
-    const teams = (await (await withToken("/teams", lime)).json()) as Array<{ id: number }>;
+    const teams = (await (await withToken("/teams", lime)).json()) as Array<{
+      id: number;
+    }>;
     expect(teams.map((t) => t.id)).not.toContain(fixtures.beta.teams.root);
-    const channels = (await (await withToken("/channels", lime)).json()) as Array<{ id: number }>;
-    expect(channels.map((c) => c.id)).not.toContain(fixtures.beta.channels.private);
+    const channels = (await (
+      await withToken("/channels", lime)
+    ).json()) as Array<{ id: number }>;
+    expect(channels.map((c) => c.id)).not.toContain(
+      fixtures.beta.channels.private,
+    );
   });
 });
 
@@ -130,21 +139,26 @@ describe("isolation multi-tenant : Beta -> Lime", () => {
   });
 
   test("les ressources de Lime n'apparaissent pas dans les listes de Beta", async () => {
-    const teams = (await (await withToken("/teams", beta)).json()) as Array<{ id: number }>;
+    const teams = (await (await withToken("/teams", beta)).json()) as Array<{
+      id: number;
+    }>;
     expect(teams.map((t) => t.id)).not.toContain(fixtures.teams.root);
   });
 });
 
 describe("anti-escalade de privilèges", () => {
   test("un membre ne peut pas s'auto-promouvoir org_admin (403)", async () => {
-    const res = await fetch(`${API_URL}/org/members/${fixtures.users.lucas.id}`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${member}`,
-        "Content-Type": "application/json",
+    const res = await fetch(
+      `${API_URL}/org/members/${fixtures.users.lucas.id}`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${member}`,
+          "Content-Type": "application/json",
+        },
+        body: json({ role: "org_admin" }),
       },
-      body: json({ role: "org_admin" }),
-    });
+    );
     expect(res.status).toBe(403);
   });
 

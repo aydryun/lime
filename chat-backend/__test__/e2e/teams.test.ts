@@ -179,10 +179,14 @@ describe("membres d'équipe", () => {
       method: "POST",
       body: json({ userId: fixtures.users.lucas.id }),
     });
-    const res = await api(`/teams/${id}/members/${fixtures.users.lucas.id}`, owner, {
-      method: "PATCH",
-      body: json({ role: "team_admin" }),
-    });
+    const res = await api(
+      `/teams/${id}/members/${fixtures.users.lucas.id}`,
+      owner,
+      {
+        method: "PATCH",
+        body: json({ role: "team_admin" }),
+      },
+    );
     expect(res.status).toBe(200);
   });
 
@@ -192,10 +196,14 @@ describe("membres d'équipe", () => {
       method: "POST",
       body: json({ userId: fixtures.users.lucas.id }),
     });
-    const res = await api(`/teams/${id}/members/${fixtures.users.lucas.id}`, owner, {
-      method: "PATCH",
-      body: json({ role: "chef_supreme" }),
-    });
+    const res = await api(
+      `/teams/${id}/members/${fixtures.users.lucas.id}`,
+      owner,
+      {
+        method: "PATCH",
+        body: json({ role: "chef_supreme" }),
+      },
+    );
     expect(res.status).toBe(400);
   });
 
@@ -205,17 +213,25 @@ describe("membres d'équipe", () => {
       method: "POST",
       body: json({ userId: fixtures.users.lucas.id }),
     });
-    const res = await api(`/teams/${id}/members/${fixtures.users.lucas.id}`, member, {
-      method: "DELETE",
-    });
+    const res = await api(
+      `/teams/${id}/members/${fixtures.users.lucas.id}`,
+      member,
+      {
+        method: "DELETE",
+      },
+    );
     expect(res.status).toBe(204);
   });
 
   test("retirer un membre inexistant (404)", async () => {
     const id = await createTeam("Vide");
-    const res = await api(`/teams/${id}/members/${fixtures.users.pending.id}`, owner, {
-      method: "DELETE",
-    });
+    const res = await api(
+      `/teams/${id}/members/${fixtures.users.pending.id}`,
+      owner,
+      {
+        method: "DELETE",
+      },
+    );
     expect(res.status).toBe(404);
   });
 });

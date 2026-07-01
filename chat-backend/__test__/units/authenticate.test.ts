@@ -57,26 +57,35 @@ describe("authenticate()", () => {
 
   test("token valide via cookie HttpOnly -> next()", () => {
     const token = jwt.sign({ userId: 1, orgId: 1 }, SECRET);
-    const { nextCalled } = run({ headers: {}, cookies: { [TOKEN_COOKIE]: token } });
+    const { nextCalled } = run({
+      headers: {},
+      cookies: { [TOKEN_COOKIE]: token },
+    });
     expect(nextCalled).toBe(true);
   });
 
   test("token illisible -> 401", () => {
-    const { res, nextCalled } = run({ headers: { authorization: "Bearer pas.un.jwt" } });
+    const { res, nextCalled } = run({
+      headers: { authorization: "Bearer pas.un.jwt" },
+    });
     expect(res.statusCode).toBe(401);
     expect(nextCalled).toBe(false);
   });
 
   test("token sans orgId -> 401", () => {
     const token = jwt.sign({ userId: 7 }, SECRET);
-    const { res, nextCalled } = run({ headers: { authorization: `Bearer ${token}` } });
+    const { res, nextCalled } = run({
+      headers: { authorization: `Bearer ${token}` },
+    });
     expect(res.statusCode).toBe(401);
     expect(nextCalled).toBe(false);
   });
 
   test("token avec userId non numérique -> 401", () => {
     const token = jwt.sign({ userId: "sept", orgId: 3 }, SECRET);
-    const { res, nextCalled } = run({ headers: { authorization: `Bearer ${token}` } });
+    const { res, nextCalled } = run({
+      headers: { authorization: `Bearer ${token}` },
+    });
     expect(res.statusCode).toBe(401);
     expect(nextCalled).toBe(false);
   });

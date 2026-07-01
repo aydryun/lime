@@ -5,7 +5,11 @@ import { API_URL, fixtures } from "./helpers.js";
 
 const JWT_SECRET = process.env.JWT_SECRET as string;
 
-function post(path: string, body: unknown, headers: Record<string, string> = {}) {
+function post(
+  path: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+) {
   return fetch(`${API_URL}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headers },
@@ -24,7 +28,11 @@ describe("POST /auth/register", () => {
       organisation: "New Corp",
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { id: number; org_id: number; email: string };
+    const body = (await res.json()) as {
+      id: number;
+      org_id: number;
+      email: string;
+    };
     expect(body.email).toBe("newbie@register.test");
     // Un nouveau compte devient owner de sa propre org (frontière tenant).
     expect(typeof body.org_id).toBe("number");
@@ -57,7 +65,10 @@ describe("POST /auth/login", () => {
       password: fixtures.adminPassword,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { token: string; user: { org_id: number } };
+    const body = (await res.json()) as {
+      token: string;
+      user: { org_id: number };
+    };
     expect(typeof body.token).toBe("string");
     expect(body.user.org_id).toBe(fixtures.org.id);
   });
@@ -79,7 +90,9 @@ describe("POST /auth/login", () => {
   });
 
   test("mot de passe manquant (400)", async () => {
-    const res = await post("/auth/login", { email: fixtures.users.admin.email });
+    const res = await post("/auth/login", {
+      email: fixtures.users.admin.email,
+    });
     expect(res.status).toBe(400);
   });
 
@@ -101,7 +114,11 @@ describe("POST /auth/logout", () => {
   });
 
   test("token invalide (401)", async () => {
-    const res = await post("/auth/logout", {}, { Authorization: "Bearer pas.un.jwt" });
+    const res = await post(
+      "/auth/logout",
+      {},
+      { Authorization: "Bearer pas.un.jwt" },
+    );
     expect(res.status).toBe(401);
   });
 
@@ -111,7 +128,11 @@ describe("POST /auth/logout", () => {
       password: fixtures.adminPassword,
     });
     const { token } = (await login.json()) as { token: string };
-    const res = await post("/auth/logout", {}, { Authorization: `Bearer ${token}` });
+    const res = await post(
+      "/auth/logout",
+      {},
+      { Authorization: `Bearer ${token}` },
+    );
     expect(res.status).toBe(200);
   });
 });
@@ -144,7 +165,10 @@ describe("POST /auth/activate", () => {
       { userId: fixtures.users.pending.id, purpose: "login" },
       JWT_SECRET,
     );
-    const res = await post("/auth/activate", { token, password: "password123" });
+    const res = await post("/auth/activate", {
+      token,
+      password: "password123",
+    });
     expect(res.status).toBe(401);
   });
 
