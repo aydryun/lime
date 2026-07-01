@@ -3,16 +3,16 @@ import jwt from "jsonwebtoken";
 import { TOKEN_COOKIE } from "./auth.js";
 import { JWT_SECRET } from "./config.js";
 
-/** Express request enriched with the authenticated user's id and org (populated by `authenticate`). */
+/** Requête Express enrichie de l'id utilisateur et de l'org authentifiés (renseignés par `authenticate`). */
 export interface AuthRequest extends Request {
   userId?: number;
   orgId?: number;
 }
 
 /**
- * Express middleware that validates a JWT from the HttpOnly cookie or
- * Authorization header. Attaches `userId` to the request on success,
- * or responds 401 otherwise.
+ * Middleware Express qui valide un JWT issu du cookie HttpOnly ou du header
+ * Authorization. Attache `userId` et `orgId` à la requête en cas de succès,
+ * ou répond 401 sinon.
  */
 export function authenticate(
   req: AuthRequest,

@@ -142,9 +142,11 @@ L'ensemble est orchestré via Docker Compose, permettant de lancer l'intégralit
 
 ### Render
 
-Render a été sélectionné comme plateforme de déploiement pour sa simplicité de configuration et son modèle de tarification prévisible. Il offre :
+Render a été sélectionné comme plateforme de déploiement pour sa simplicité de configuration et son modèle de tarification prévisible. Il héberge le **frontend**, le **backend** et **Redis** (blueprint [`render.yaml`](../render.yaml)). Il offre :
 
 - **Déploiements automatiques** — déclenchés à chaque push sur la branche principale, via l'intégration GitHub.
 - **Support Docker natif** — les conteneurs définis dans le Dockerfile sont déployés directement, sans configuration supplémentaire.
 - **SSL/TLS automatique** — certificats HTTPS renouvelés automatiquement.
-- **Base de données managée** — PostgreSQL et Redis sont disponibles en tant que services managés, ce qui évite d'avoir à les administrer nous-mêmes.
+- **Redis managé** — via une ressource *Key Value*, pour le pub/sub des messages temps réel.
+
+En revanche, la base **PostgreSQL de production n'est pas sur Render** : elle est hébergée sur **Neon** (Postgres serverless managé), et sa connection string est fournie au backend via `DATABASE_URL`. Voir [deploiement.md](deploiement.md) pour la configuration complète (URLs, variables d'environnement, Neon).

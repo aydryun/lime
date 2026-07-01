@@ -33,13 +33,13 @@ app.use(
 app.use(cookieParser());
 app.use(express.json());
 
-// Connected WebSocket clients, each tagged with its tenant (org) and user id.
+// Clients WebSocket connectés, chacun étiqueté avec son tenant (org) et son id utilisateur.
 const wsClients = new Map<
   WebSocket.WebSocket,
   { orgId: number; userId: number }
 >();
 
-/** Extracts the JWT from the ws upgrade request (HttpOnly cookie or Bearer header). */
+/** Extrait le JWT de la requête d'upgrade ws (cookie HttpOnly ou header Bearer). */
 function tokenFromRequest(req: Request): string | null {
   const cookieToken = (req as Request & { cookies?: Record<string, string> })
     .cookies?.[TOKEN_COOKIE];
@@ -57,28 +57,28 @@ function tokenFromRequest(req: Request): string | null {
   return null;
 }
 
-// Initialize
+// Initialisation
 async function start() {
   try {
-    // Connect to Redis
+    // Connexion à Redis
     await connectRedis();
 
-    // Subscribe to Redis messages and relay them only to clients that are
-    // members of the message's channel (and thus its org).
+    // S'abonne aux messages Redis et ne les relaie qu'aux clients membres
+    // du canal du message (et donc de son org).
     subscribeToMessages((message: unknown) => {
       void relayMessage(message);
     });
 
-    // API docs
+    // Docs API
     app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-    // Auth routes
+    // Routes d'authentification
     app.use("/api/auth", authRouter);
 
-    // User profile routes
+    // Routes de profil utilisateur
     app.use("/api/users", usersRouter);
 
-    // Channel + per-channel message routes
+    // Routes des canaux + messages par canal
     app.use("/api/channels", channelsRouter);
 
     // Organisation (infos entreprise + membres)
@@ -87,7 +87,7 @@ async function start() {
     // Teams (CRUD + membres)
     app.use("/api/teams", teamsRouter);
 
-    // WebSocket endpoint — authenticated relay, scoped to the client's org.
+    // Endpoint WebSocket — relais authentifié, scopé à l'org du client.
     (appWithWs as unknown as Instance["app"]).ws(
       "/ws",
       (ws: WebSocket.WebSocket, req: Request) => {
@@ -126,7 +126,7 @@ async function start() {
       },
     );
 
-    // Relay a message only to connected clients that are members of its channel
+    // Ne relaie un message qu'aux clients connectés membres de son canal
     // (tenant isolation + pas de fuite inter-canaux au sein d'une même org).
     async function relayMessage(message: unknown) {
       const msg = message as { org_id?: number; channel_id?: number };
@@ -144,7 +144,7 @@ async function start() {
           if (
             client.orgId === msg.org_id &&
             memberIds.has(client.userId) &&
-            ws.readyState === 1 // OPEN
+            ws.readyState === 1 // OUVERT
           ) {
             ws.send(data);
           }

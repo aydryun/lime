@@ -33,13 +33,13 @@ function safeSetItem(key: string, value: string): void {
   }
 }
 
-/** Returns the persisted UI language, defaulting to "fr" if unset or invalid. */
+/** Renvoie la langue d'interface persistée, « fr » par défaut si absente ou invalide. */
 export function getStoredLanguage(): Language {
   const value = safeGetItem(LANGUAGE_STORAGE_KEY);
   return value === "en" || value === "fr" ? value : "fr";
 }
 
-/** Persists the chosen UI language in localStorage. */
+/** Persiste la langue d'interface choisie dans le localStorage. */
 export function setStoredLanguage(language: Language): void {
   safeSetItem(LANGUAGE_STORAGE_KEY, language);
 }
@@ -56,7 +56,7 @@ function isNotificationPreferences(
   );
 }
 
-/** Returns the persisted notification preferences, merged onto the defaults. */
+/** Renvoie les préférences de notification persistées, fusionnées avec les valeurs par défaut. */
 export function getStoredNotifications(): NotificationPreferences {
   const raw = safeGetItem(NOTIFICATIONS_STORAGE_KEY);
   if (!raw) return DEFAULT_NOTIFICATIONS;
@@ -69,7 +69,7 @@ export function getStoredNotifications(): NotificationPreferences {
   }
 }
 
-/** Persists the notification preferences in localStorage. */
+/** Persiste les préférences de notification dans le localStorage. */
 export function setStoredNotifications(prefs: NotificationPreferences): void {
   safeSetItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(prefs));
 }

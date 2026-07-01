@@ -102,7 +102,7 @@ export default function ChatPage() {
     }
   }, [activeChannelId, loadMessages]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll on every new message
+  // biome-ignore lint/correctness/useExhaustiveDependencies: défilement à chaque nouveau message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -111,7 +111,7 @@ export default function ChatPage() {
     try {
       await fetch(apiUrl("/api/auth/logout"), jsonInit("POST"));
     } catch {
-      // Best-effort
+      // Au mieux (best-effort)
     }
     clearStoredToken();
     clearStoredUser();
@@ -267,7 +267,7 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* 2. Secondary Sidebar (List) */}
+      {/* 2. Barre latérale secondaire (liste) */}
       <div className="w-64 bg-sidebar/50 border-r border-border flex flex-col z-10 shrink-0">
         <div className="h-14 border-b border-border flex items-center justify-between px-4 font-semibold shadow-sm">
           <span>{listTitle}</span>

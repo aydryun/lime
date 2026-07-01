@@ -1,9 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-// Front-domain flag cookie set at login (see lib/auth.ts). The real JWT lives in
-// localStorage and travels as an Authorization header — it is NOT a cross-site
-// cookie, so the middleware gates on this readable flag instead. Forging it only
-// loads the page shell; every API call still requires a valid Bearer token.
+// Cookie indicateur, posé côté domaine front au login (voir lib/auth.ts). Le vrai
+// JWT vit dans le localStorage et circule via un header Authorization — ce n'est
+// PAS un cookie intersite, le middleware s'appuie donc sur cet indicateur lisible.
+// Le falsifier ne charge que la coquille de la page ; chaque appel API exige
+// toujours un token Bearer valide.
 const AUTH_FLAG_COOKIE = "chat_auth";
 
 /**

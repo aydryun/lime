@@ -20,17 +20,17 @@ const redisClient = process.env.REDIS_URL
 redisClient.on("error", (err) => console.error("Redis error:", err));
 redisClient.on("connect", () => console.log("✓ Connected to Redis"));
 
-// Connect to Redis
+// Se connecte à Redis
 export async function connectRedis() {
   await redisClient.connect();
 }
 
-// Publish a message to the channel
+// Publie un message sur le canal Redis
 export async function publishMessage(channel: string, message: unknown) {
   await redisClient.publish(channel, JSON.stringify(message));
 }
 
-// Subscribe to messages
+// S'abonne aux messages
 export function subscribeToMessages(callback: (message: unknown) => void) {
   const subscriber = redisClient.duplicate();
 

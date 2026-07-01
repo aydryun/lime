@@ -1,7 +1,7 @@
 import { apiUrl } from "./api";
 import { getStoredToken } from "./auth";
 
-/** Error carrying the HTTP status and optional backend error code. */
+/** Erreur portant le statut HTTP et un éventuel code d'erreur backend. */
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string | null;
@@ -13,7 +13,7 @@ export class ApiError extends Error {
   }
 }
 
-/** Parses a JSON response, throwing ApiError on non-2xx. */
+/** Parse une réponse JSON, en levant ApiError si le statut n'est pas 2xx. */
 export async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let message = `HTTP ${res.status}`;
@@ -23,7 +23,7 @@ export async function handle<T>(res: Response): Promise<T> {
       if (body?.error) message = body.error;
       if (body?.code) code = body.code;
     } catch {
-      // ignore parse errors
+      // ignore les erreurs de parsing
     }
     throw new ApiError(message, res.status, code);
   }
@@ -32,29 +32,29 @@ export async function handle<T>(res: Response): Promise<T> {
 }
 
 /**
- * Authorization header carrying the stored Bearer token, or empty when logged
- * out. The backend (cross-domain on Render) cannot rely on a SameSite cookie,
- * so the JWT is sent explicitly on every request.
+ * Header Authorization portant le token Bearer stocké, ou vide si déconnecté.
+ * Le backend (cross-domaine sur Render) ne peut pas s'appuyer sur un cookie
+ * SameSite : le JWT est donc envoyé explicitement à chaque requête.
  */
 export function authHeaders(): Record<string, string> {
   const token = getStoredToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-/** Builds a fetch init for a JSON request with Bearer auth. */
+/** Construit un init de fetch pour une requête JSON avec auth Bearer. */
 export const jsonInit = (method: string, body?: unknown): RequestInit => ({
   method,
   headers: { "Content-Type": "application/json", ...authHeaders() },
   body: body !== undefined ? JSON.stringify(body) : undefined,
 });
 
-/** Builds a fetch init for a body-less request (GET/DELETE) with Bearer auth. */
+/** Construit un init de fetch pour une requête sans corps (GET/DELETE) avec auth Bearer. */
 export const authInit = (method = "GET"): RequestInit => ({
   method,
   headers: authHeaders(),
 });
 
-/** Convenience for authenticated GET requests. */
+/** Raccourci pour les requêtes GET authentifiées. */
 export async function getJson<T>(path: string): Promise<T> {
   return handle<T>(await fetch(apiUrl(path), authInit()));
 }

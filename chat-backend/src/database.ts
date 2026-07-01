@@ -31,7 +31,7 @@ const pool = new Pool(
       },
 );
 
-/** Returns the full user row matching the given email, or null. */
+/** Renvoie la ligne utilisateur complète correspondant à l'email donné, ou null. */
 export async function findUserByEmail(email: string) {
   const result = await pool.query("SELECT * FROM users WHERE email = $1", [
     email,
@@ -39,7 +39,7 @@ export async function findUserByEmail(email: string) {
   return result.rows[0] || null;
 }
 
-/** Returns the public profile of the user with the given id, or null. */
+/** Renvoie le profil public de l'utilisateur d'id donné, ou null. */
 export async function findUserById(id: number) {
   const result = await pool.query(
     "SELECT id, firstname, lastname, email, username FROM users WHERE id = $1",
@@ -48,7 +48,7 @@ export async function findUserById(id: number) {
   return result.rows[0] || null;
 }
 
-/** Resolves a role name to its roles.id (cached after first lookup). */
+/** Résout un nom de rôle vers son roles.id (mis en cache après la première recherche). */
 const roleIdCache = new Map<string, number>();
 export async function getRoleId(name: string): Promise<number> {
   const cached = roleIdCache.get(name);
@@ -58,14 +58,15 @@ export async function getRoleId(name: string): Promise<number> {
     [name],
   );
   const id = result.rows[0]?.id as number | undefined;
-  if (!id) throw new Error(`Missing role in DB: ${name}`);
+  if (!id) throw new Error(`Rôle absent en BDD : ${name}`);
   roleIdCache.set(name, id);
   return id;
 }
 
 /**
- * Registers a new tenant: creates an organisation, its first user, and grants
- * that user the org_owner role — atomically. Returns the user public profile.
+ * Enregistre un nouveau tenant : crée une organisation, son premier utilisateur
+ * et lui accorde le rôle org_owner — le tout atomiquement. Renvoie le profil
+ * public de l'utilisateur.
  */
 export async function createUserWithOrganisation(
   firstname: string,
@@ -104,7 +105,7 @@ export async function createUserWithOrganisation(
   }
 }
 
-/** Updates the profile of an existing user; returns the updated public profile or null if not found. */
+/** Met à jour le profil d'un utilisateur existant ; renvoie le profil public mis à jour, ou null si introuvable. */
 export async function updateUser(
   id: number,
   firstname: string,
@@ -122,7 +123,7 @@ export async function updateUser(
   return result.rows[0] || null;
 }
 
-/** Returns the bcrypt hash for the given user id (used to verify current password). */
+/** Renvoie le hash bcrypt de l'utilisateur d'id donné (sert à vérifier le mot de passe actuel). */
 export async function getUserPasswordById(id: number): Promise<string | null> {
   const result = await pool.query("SELECT password FROM users WHERE id = $1", [
     id,
@@ -130,7 +131,7 @@ export async function getUserPasswordById(id: number): Promise<string | null> {
   return result.rows[0]?.password ?? null;
 }
 
-/** Updates the password hash for a user; returns true if a row was actually modified. */
+/** Met à jour le hash du mot de passe d'un utilisateur ; renvoie true si une ligne a bien été modifiée. */
 export async function updateUserPassword(
   id: number,
   hashedPassword: string,
@@ -142,7 +143,7 @@ export async function updateUserPassword(
   return (result.rowCount ?? 0) > 0;
 }
 
-/** Returns every message of a channel with its sender username, oldest first. */
+/** Renvoie tous les messages d'un canal avec le username de l'expéditeur, du plus ancien au plus récent. */
 export async function getChannelMessages(
   channelId: number,
 ): Promise<unknown[]> {
@@ -158,7 +159,7 @@ export async function getChannelMessages(
   return result.rows;
 }
 
-/** Inserts a new message in a channel and returns the persisted row (with sender username). */
+/** Insère un nouveau message dans un canal et renvoie la ligne persistée (avec le username de l'expéditeur). */
 export async function insertChannelMessage(
   channelId: number,
   userId: number,
@@ -197,7 +198,7 @@ const CANAL_ROLE_NAMES: CanalRole[] = [
   "canal_reader",
 ];
 
-/** Resolves a canal role name to its roles.id (cached after first lookup). */
+/** Résout un nom de rôle canal vers son roles.id (mis en cache après la première recherche). */
 const canalRoleIdCache = new Map<CanalRole, number>();
 export async function getCanalRoleId(role: CanalRole): Promise<number> {
   const cached = canalRoleIdCache.get(role);
@@ -207,13 +208,13 @@ export async function getCanalRoleId(role: CanalRole): Promise<number> {
     [role],
   );
   const id = result.rows[0]?.id as number | undefined;
-  if (!id) throw new Error(`Missing role in DB: ${role}`);
+  if (!id) throw new Error(`Rôle absent en BDD : ${role}`);
   canalRoleIdCache.set(role, id);
   return id;
 }
 
 /**
- * Channels visible to a user dans son org : rôle explicite, lien direct, lien
+ * Canaux visibles par un utilisateur dans son org : rôle explicite, lien direct, lien
  * team (étendu au sous-arbre si include_descendants), ou canal org-wide.
  * my_role = rôle explicite, sinon meilleur rôle par défaut des liens applicables.
  */
@@ -283,7 +284,7 @@ export async function listUserChannels(
   return result.rows;
 }
 
-/** Returns a channel row by id, or null. */
+/** Renvoie la ligne d'un canal par son id, ou null. */
 export async function findChannelById(id: number): Promise<ChannelRow | null> {
   const result = await pool.query(
     "SELECT id, name FROM channels WHERE id = $1",
@@ -315,7 +316,7 @@ export type ChannelAddSpec =
   | { mode: "members"; userIds: number[]; defaultRole: DefaultCanalRole };
 
 /**
- * Creates a channel in the caller's org; creator becomes canal_owner. Le peuplement
+ * Crée un canal dans l'org de l'appelant ; le créateur devient canal_owner. Le peuplement
  * initial suit `spec`. La portée (droit de scoper à telle team / d'ajouter tel
  * membre) est vérifiée en amont par la route ; ici on revérifie l'appartenance
  * à l'org (isolation tenant). Le rôle effectif des membres ajoutés est résolu
@@ -412,7 +413,7 @@ export async function createChannel(
   }
 }
 
-/** Renames a channel; returns updated row or null. */
+/** Renomme un canal ; renvoie la ligne mise à jour, ou null. */
 export async function renameChannel(
   id: number,
   name: string,
@@ -424,7 +425,7 @@ export async function renameChannel(
   return result.rows[0] ?? null;
 }
 
-/** Deletes a channel and everything attached to it. */
+/** Supprime un canal et tout ce qui y est rattaché. */
 export async function deleteChannel(id: number): Promise<boolean> {
   const client = await pool.connect();
   try {
@@ -461,9 +462,9 @@ export type ChannelMember = {
 };
 
 /**
- * Members of a channel = union of:
- *  - users with a canal_* user_roles entry (rôle explicite),
- *  - users in channel_team_users.user_id (lien direct),
+ * Membres d'un canal = union de :
+ *  - les utilisateurs ayant une entrée user_roles canal_* (rôle explicite),
+ *  - les utilisateurs dans channel_team_users.user_id (lien direct),
  *  - users d'une team liée, étendue à son sous-arbre si include_descendants,
  *  - tous les membres de l'org si le canal est org-wide.
  * Le rôle effectif est le rôle explicite s'il existe, sinon le rôle par défaut
@@ -537,7 +538,7 @@ export async function listChannelMembers(
   return result.rows;
 }
 
-/** Returns the canal role of a user for a channel, or null if not a member. */
+/** Renvoie le rôle canal d'un utilisateur pour un canal, ou null s'il n'est pas membre. */
 export async function getUserChannelRole(
   channelId: number,
   userId: number,
@@ -610,7 +611,7 @@ export async function getUserChannelRole(
   return (fallback.rows[0]?.name as CanalRole | undefined) ?? null;
 }
 
-/** Adds a user to a channel as canal_member. Returns true if newly added. */
+/** Ajoute un utilisateur à un canal comme canal_member. Renvoie true s'il vient d'être ajouté. */
 export async function addChannelMember(
   channelId: number,
   userId: number,
@@ -660,7 +661,7 @@ export async function addChannelMember(
   }
 }
 
-/** Removes a user from a channel (drops both channel_team_users + canal_* user_roles). */
+/** Retire un utilisateur d'un canal (supprime à la fois channel_team_users + les user_roles canal_*). */
 export async function removeChannelMember(
   channelId: number,
   userId: number,
@@ -689,7 +690,7 @@ export async function removeChannelMember(
   }
 }
 
-/** Replaces a user's canal role within a channel (used for promote/demote). */
+/** Remplace le rôle canal d'un utilisateur dans un canal (utilisé pour promouvoir/rétrograder). */
 export async function setChannelRole(
   channelId: number,
   userId: number,
@@ -720,8 +721,8 @@ export async function setChannelRole(
 }
 
 /**
- * Transfers ownership of a channel from current owner to newOwnerId, then
- * removes the previous owner from the channel ("leave after transfer").
+ * Transfère la propriété d'un canal du propriétaire actuel vers newOwnerId, puis
+ * retire l'ancien propriétaire du canal (« départ après transfert »).
  */
 export async function transferChannelOwnership(
   channelId: number,
@@ -732,7 +733,7 @@ export async function transferChannelOwnership(
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    // Wipe target's canal_* roles and promote them to owner.
+    // Efface les rôles canal_* de la cible et la promeut propriétaire.
     await client.query(
       `DELETE FROM user_roles
        WHERE channel_id = $1 AND user_id = $2
@@ -744,14 +745,14 @@ export async function transferChannelOwnership(
        VALUES ($1, $2, $3)`,
       [newOwnerId, ownerRoleId, channelId],
     );
-    // Make sure they're a direct member too.
+    // S'assure qu'elle est aussi membre direct.
     await client.query(
       `INSERT INTO channel_team_users (channel_id, user_id, org_id)
        VALUES ($1, $2, (SELECT org_id FROM channels WHERE id = $1))
        ON CONFLICT DO NOTHING`,
       [channelId, newOwnerId],
     );
-    // Remove the previous owner from the channel entirely.
+    // Retire complètement l'ancien propriétaire du canal.
     await client.query(
       `DELETE FROM channel_team_users
        WHERE channel_id = $1 AND user_id = $2`,
@@ -772,7 +773,7 @@ export async function transferChannelOwnership(
   }
 }
 
-/** Lists users not already members of the channel (for "add member" picker). */
+/** Liste les utilisateurs pas encore membres du canal (pour le sélecteur « ajouter un membre »). */
 export async function listNonMembers(
   channelId: number,
   search: string,
@@ -845,7 +846,7 @@ export const ORG_UPDATABLE_FIELDS = [
 
 export type OrgUpdatableField = (typeof ORG_UPDATABLE_FIELDS)[number];
 
-/** Returns the organisation row by id, or null. */
+/** Renvoie la ligne de l'organisation par son id, ou null. */
 export async function getOrganisationById(
   orgId: number,
 ): Promise<OrganisationRow | null> {
@@ -855,7 +856,7 @@ export async function getOrganisationById(
   return result.rows[0] ?? null;
 }
 
-/** Updates the provided org fields (whitelisted) and bumps updated_at. Returns the updated row or null. */
+/** Met à jour les champs d'org fournis (liste blanche) et rafraîchit updated_at. Renvoie la ligne mise à jour, ou null. */
 export async function updateOrganisation(
   orgId: number,
   fields: Partial<Record<OrgUpdatableField, string | null>>,
@@ -875,7 +876,7 @@ export async function updateOrganisation(
 export type OrgRole = "org_owner" | "org_admin" | "member";
 const ORG_ROLE_NAMES: OrgRole[] = ["org_owner", "org_admin", "member"];
 
-/** Returns the caller's org-scoped role (highest priority), or null if none. */
+/** Renvoie le rôle org-scopé de l'appelant (le plus prioritaire), ou null s'il n'en a aucun. */
 export async function getUserOrgRole(
   userId: number,
   orgId: number,
@@ -962,7 +963,7 @@ export interface OrgMember {
   activated: boolean;
 }
 
-/** Lists the users of an organisation with their org-scoped role and activation status. */
+/** Liste les utilisateurs d'une organisation avec leur rôle org-scopé et leur statut d'activation. */
 export async function listOrgMembers(orgId: number): Promise<OrgMember[]> {
   const result = await pool.query(
     `SELECT u.id, u.firstname, u.lastname, u.email, u.username,
@@ -983,7 +984,7 @@ export async function listOrgMembers(orgId: number): Promise<OrgMember[]> {
   return result.rows;
 }
 
-/** Postgres unique-violation error code. */
+/** Code d'erreur Postgres pour violation de contrainte d'unicité. */
 const PG_UNIQUE_VIOLATION = "23505";
 
 export class DuplicateError extends Error {
@@ -994,9 +995,9 @@ export class DuplicateError extends Error {
 }
 
 /**
- * Creates a new member inside an existing org with the given org role, atomically.
- * The password hash is provided by the caller (random until the user activates).
- * Throws DuplicateError on email/username conflict.
+ * Crée un nouveau membre dans une org existante avec le rôle d'org donné, atomiquement.
+ * Le hash du mot de passe est fourni par l'appelant (aléatoire tant que l'utilisateur n'a pas activé).
+ * Lève DuplicateError en cas de conflit email/username.
  */
 export async function createOrgMember(args: {
   orgId: number;
@@ -1053,7 +1054,7 @@ export async function createOrgMember(args: {
   }
 }
 
-/** Sets the password and marks the account active (used by invitation activation). */
+/** Définit le mot de passe et marque le compte comme actif (utilisé par l'activation d'invitation). */
 export async function activateUser(
   userId: number,
   hashedPassword: string,
@@ -1065,7 +1066,7 @@ export async function activateUser(
   return (result.rowCount ?? 0) > 0;
 }
 
-/** Changes a member's org role (org_admin or member). Never touches org_owner. Returns false if member not found. */
+/** Change le rôle d'org d'un membre (org_admin ou member). Ne touche jamais à org_owner. Renvoie false si le membre est introuvable. */
 export async function setOrgMemberRole(
   userId: number,
   orgId: number,
@@ -1107,9 +1108,9 @@ export async function setOrgMemberRole(
 export type RemoveMemberResult = "removed" | "not_found" | "has_content";
 
 /**
- * Removes a member from the org (= deletes the user, one user/one org).
- * Refuses if the user still owns messages/documents (FK would break) — those
- * must be handled first. Cleans up role/team/channel associations otherwise.
+ * Retire un membre de l'org (= supprime l'utilisateur, un user/une org).
+ * Refuse si l'utilisateur possède encore des messages/documents (la FK casserait) —
+ * ceux-ci doivent être traités d'abord. Sinon, nettoie les associations rôle/team/canal.
  */
 export async function removeOrgMember(
   userId: number,
@@ -1165,7 +1166,7 @@ export interface TeamRow {
   parent_team_id: number | null;
 }
 
-/** Lists the teams of an org with their member count. */
+/** Liste les équipes d'une org avec leur nombre de membres. */
 export async function listTeams(
   orgId: number,
 ): Promise<Array<TeamRow & { member_count: number }>> {
@@ -1181,7 +1182,7 @@ export async function listTeams(
 }
 
 /**
- * Lists the teams of an org visible to a non-org-manager : celles dont il est
+ * Liste les équipes d'une org visibles par un non-manager d'org : celles dont il est
  * membre (via team_users) ET celles de son domaine d'autorité (sous-arbre des
  * teams qu'il gère, y compris les sous-équipes vides qu'il pilote par cascade).
  */
@@ -1208,7 +1209,7 @@ export async function listTeamsForMember(
   return result.rows;
 }
 
-/** Returns a team row scoped to the org, or null. */
+/** Renvoie la ligne d'une équipe scopée à l'org, ou null. */
 export async function getTeamById(
   teamId: number,
   orgId: number,
@@ -1221,7 +1222,7 @@ export async function getTeamById(
 }
 
 /**
- * Creates an empty team in the org (le créateur n'est PAS ajouté ; il la gère
+ * Crée une équipe vide dans l'org (le créateur n'est PAS ajouté ; il la gère
  * via ses droits — org-scopés pour une racine, ou hérités par cascade depuis le
  * parent pour une sous-équipe). `parentTeamId` rattache la team à une parente
  * (NULL = racine) : elle doit appartenir à la même org. La portée du droit de
@@ -1258,7 +1259,7 @@ export async function createTeam(
   return teamRow;
 }
 
-/** Renames a team within the org; returns the updated row or null. */
+/** Renomme une équipe au sein de l'org ; renvoie la ligne mise à jour, ou null. */
 export async function renameTeam(
   teamId: number,
   orgId: number,
@@ -1273,7 +1274,7 @@ export async function renameTeam(
 }
 
 /**
- * Deletes a team and its memberships/role rows. Returns false if not found in org.
+ * Supprime une équipe ainsi que ses lignes d'appartenance/de rôle. Renvoie false si introuvable dans l'org.
  * Les sous-équipes ne sont PAS supprimées : elles sont réattachées au parent de
  * la team supprimée (grand-parent, ou NULL → racine si la team supprimée était
  * elle-même racine), ce qui préserve la chaîne de cascade tant qu'un ancêtre
@@ -1337,7 +1338,7 @@ export async function isTeamMemberInOrg(
   return (result.rowCount ?? 0) > 0;
 }
 
-/** Returns the caller's team-scoped role, or null if not a member. */
+/** Renvoie le rôle team-scopé de l'appelant, ou null s'il n'est pas membre. */
 export async function getUserTeamRole(
   userId: number,
   teamId: number,
@@ -1436,7 +1437,7 @@ export interface TeamMember {
   role: TeamRole;
 }
 
-/** Lists the members of a team with their team role (default team_member). */
+/** Liste les membres d'une équipe avec leur rôle d'équipe (team_member par défaut). */
 export async function listTeamMembers(teamId: number): Promise<TeamMember[]> {
   const result = await pool.query(
     `SELECT u.id AS user_id, u.username, u.firstname, u.lastname,
@@ -1462,7 +1463,7 @@ export async function listTeamMembers(teamId: number): Promise<TeamMember[]> {
 
 export type AddTeamMemberResult = "added" | "not_in_org" | "already_member";
 
-/** Adds a user (must belong to the org) to a team with the given role. */
+/** Ajoute un utilisateur (devant appartenir à l'org) à une équipe avec le rôle donné. */
 export async function addTeamMember(
   teamId: number,
   orgId: number,
@@ -1508,7 +1509,7 @@ export async function addTeamMember(
   }
 }
 
-/** Removes a user from a team (membership + team-scoped roles). Returns false if not a member. */
+/** Retire un utilisateur d'une équipe (appartenance + rôles team-scopés). Renvoie false s'il n'est pas membre. */
 export async function removeTeamMember(
   teamId: number,
   userId: number,

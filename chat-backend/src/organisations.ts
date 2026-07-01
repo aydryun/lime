@@ -33,7 +33,7 @@ export function cleanString(value: unknown, maxLength: number): string | null {
   return trimmed;
 }
 
-/** Resolves the authenticated caller, or sends 401 and returns null. */
+/** Résout l'appelant authentifié, ou envoie 401 et renvoie null. */
 function authContext(
   req: AuthRequest,
   res: import("express").Response,
@@ -84,7 +84,7 @@ const FIELD_MAX: Record<OrgUpdatableField, number> = {
   pays: 255,
 };
 
-/** Validates the PATCH body; returns the cleaned fields or an error message. */
+/** Valide le body du PATCH ; renvoie les champs nettoyés ou un message d'erreur. */
 function validateOrgFields(
   body: Record<string, unknown>,
 ):

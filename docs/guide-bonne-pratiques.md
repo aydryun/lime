@@ -81,8 +81,15 @@ flowchart LR
 
 ### Code review et acceptation de merge
 
-A chaque pull request coderabbit déclenche sa propre code review en même temps que les autres actions, la review coderabbit[^2] va nous permettre de modifier nos pull request en fonction de la pertinence des changements proposés et leur impacte.
-    En parallèle la personne qui n'a pas rédigé la pull request sera sollicitée comme Reviewer des changement.
+À chaque pull request, **CodeRabbit**[^2] déclenche sa propre code review en parallèle des workflows de lint et de test. Ses suggestions nous permettent d'ajuster la pull request selon la pertinence et l'impact des changements. En parallèle, la personne qui n'a pas rédigé la pull request est sollicitée comme *reviewer* humain.
+
+CodeRabbit est configuré via [`.coderabbit.yml`](../.coderabbit.yml) :
+
+- **Revues en français** (`language: fr`), profil `chill`, adaptées à notre stack (Bun, Biome, Next.js App Router + React 19 + Tailwind v4). Des **instructions par chemin** distinguent le backend (règles Biome, pas de `any`) du frontend (patrons React modernes, conventions Tailwind v4).
+- **Revue automatique et incrémentale** à chaque PR (et à chaque nouveau commit) : résumé de haut niveau, walkthrough, diagrammes de séquence, estimation de l'effort de revue, évaluation des issues liées.
+- **Non bloquante** : `request_changes_workflow: false` et `fail_commit_status: false` — CodeRabbit ne bloque pas le merge, ses retours sont indicatifs (c'est la review humaine + les checks lint/test qui conditionnent le merge). Les *pre-merge checks* (docstrings, qualité du titre/description) sont en mode `warning`.
+- **Outils branchés** : Biome, détection de secrets (Gitleaks, TruffleHog), analyse de sécurité (Semgrep, Trivy, Checkov), lint des workflows (actionlint) et Dockerfiles (Hadolint), Markdown (markdownlint), orthographe/grammaire (LanguageTool), SQL (sqlfluff), YAML (yamllint), etc.
+- La documentation (`docs/**`) et `node_modules` sont **exclus** des revues (`path_filters`).
 
 ## Environnement de test e2e
 

@@ -69,13 +69,21 @@ Un membre invité est créé avec `activated_at = NULL` et un mot de passe aléa
 
 ### teams
 
-Équipes regroupant des utilisateurs.
+Équipes regroupant des utilisateurs. **Hiérarchiques** : une équipe peut avoir une équipe parente (migration 021).
 
 | Colonne | Type | Contraintes |
 |---|---|---|
 | id | SERIAL | PRIMARY KEY |
 | name | VARCHAR(255) | NOT NULL |
 | org_id | INTEGER | FK → organisations(id), NOT NULL |
+| parent_team_id | INTEGER | nullable (NULL = équipe racine) |
+
+**Contraintes (invariant tenant verrouillé en SQL) :**
+- `UNIQUE (id, org_id)` (`teams_id_org_unique`) — préalable aux FK composites.
+- FK **composite** `(parent_team_id, org_id) → teams(id, org_id)` (`teams_parent_same_org_fk`) : un parent doit exister **et** appartenir à la même org que l'enfant. Empêche toute cascade d'autorité RBAC inter-tenant. Pas d'`ON DELETE` : la suppression d'un parent réattache ses enfants au grand-parent en logique applicative (`deleteTeam`).
+- Index `idx_teams_parent_team_id`.
+
+`parent_team_id` est l'**unique** source de la hiérarchie (pas de colonne `level` → pas de redondance ni d'usurpation de niveau). La cascade d'autorité (un `team_owner`/`team_admin` gère ses sous-équipes) est calculée dynamiquement en remontant/descendant cette chaîne.
 
 ### team_users
 
@@ -95,10 +103,14 @@ Canaux de discussion.
 | id | SERIAL | PRIMARY KEY |
 | name | VARCHAR(255) | NOT NULL |
 | org_id | INTEGER | FK → organisations(id), NOT NULL |
+| is_org_wide | BOOLEAN | NOT NULL, DEFAULT FALSE (canal couvrant toute l'org — migration 022) |
+| default_role_id | INTEGER | FK → roles(id), nullable (rôle par défaut des membres org-wide ; NULL ⇒ canal_member) |
+
+`UNIQUE (id, org_id)` (`channels_id_org_unique`) — support des FK composites de `channel_team_users`.
 
 ### channel_team_users
 
-Contrôle l'accès aux channels. Un channel peut être lié à une **team** (tous les membres y ont accès) ou à un **user** spécifique (DM ou accès individuel).
+Contrôle l'accès aux channels. Un lien rattache un channel à une **team** (tous ses membres y ont accès, éventuellement étendu au sous-arbre) ou à un **user** spécifique (accès individuel). Chaque lien porte le rôle attribué par défaut aux membres qui accèdent via lui.
 
 | Colonne | Type | Contraintes |
 |---|---|---|
@@ -106,11 +118,15 @@ Contrôle l'accès aux channels. Un channel peut être lié à une **team** (tou
 | channel_id | INTEGER | FK → channels(id), NOT NULL |
 | team_id | INTEGER | FK → teams(id), nullable |
 | user_id | INTEGER | FK → users(id), nullable |
+| include_descendants | BOOLEAN | NOT NULL, DEFAULT FALSE (lien team étendu au sous-arbre — migration 022) |
+| default_role_id | INTEGER | FK → roles(id), nullable (rôle par défaut via ce lien ; NULL ⇒ canal_member) |
+| org_id | INTEGER | NOT NULL (dénormalisé depuis le canal — migration 022) |
 
 **Contraintes :**
 - `CHECK (team_id IS NOT NULL OR user_id IS NOT NULL)` — au moins un des deux doit être renseigné
 - Index unique sur `(channel_id, team_id)` quand team_id est non null
 - Index unique sur `(channel_id, user_id)` quand user_id est non null
+- FK **composites** garantissant l'isolation tenant (migration 022) : `(channel_id, org_id) → channels`, `(team_id, org_id) → teams`, `(user_id, org_id) → users`. Tout lien inter-org est rejeté au niveau SQL.
 
 ### messages
 
@@ -175,7 +191,7 @@ Rôles par défaut (seed) :
 - Globaux : **admin**, **moderator**, **member**
 - Organisation : **org_owner**, **org_admin** (scope `org_id`)
 - Équipe : **team_owner**, **team_admin**, **team_member** (scope `team_id`)
-- Canal : **canal_owner**, **canal_admin**, **canal_member** (scope `channel_id`)
+- Canal : **canal_owner**, **canal_admin**, **canal_member**, **canal_reader** (lecture seule — migration 020) (scope `channel_id`)
 
 ### permissions
 
@@ -201,17 +217,21 @@ toute l'org, un rôle team/canal-scopé ne couvre que sa team / son canal.
 | role_id | INTEGER | FK → roles(id), PK |
 | permission_id | INTEGER | FK → permissions(id), PK |
 
-Seed (migration 019), au-delà des rôles génériques de démo :
+Seed (migrations 019 → 022), au-delà des rôles génériques de démo :
 
 | Rôle | Permissions |
 |---|---|
 | org_owner / org_admin | toutes catégories, toutes actions |
-| team_owner | team GET/UPDATE/DELETE |
-| team_admin | team GET/UPDATE |
+| member | team GET (voir ses équipes) |
+| team_owner | team GET/UPDATE/DELETE/**CREATE**, channel **CREATE** |
+| team_admin | team GET/UPDATE/**CREATE**, channel **CREATE** |
 | team_member | team GET |
 | canal_owner | channel GET/UPDATE/DELETE, message GET/CREATE/UPDATE/DELETE |
 | canal_admin | channel GET/UPDATE, message GET/CREATE/UPDATE/DELETE |
 | canal_member | channel GET, message GET/CREATE |
+| canal_reader | channel GET, message GET (lecture seule) |
+
+> `team:CREATE` / `channel:CREATE` accordés à team_owner/team_admin (migrations 021/022) autorisent la création de **sous-équipes** et de **canaux scopés** ; la portée exacte (sur quel parent / quelle équipe) est vérifiée par `userHasPermission`, qui remonte la chaîne `parent_team_id` (cascade d'autorité).
 
 Rôles génériques de démo (seed applicatif) :
 

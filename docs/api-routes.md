@@ -1,27 +1,45 @@
 # API Routes — Lime
 
-> Routes minimalistes, préfixe `/api`.
+> API REST, préfixe `/api`. Source de vérité : `chat-backend/src/`.
+> Documentation interactive (Swagger UI) : **`GET /api/docs`**.
 
-## Authentification
+## Conventions
 
-Toutes les routes protégées nécessitent le header :
-```
-Authorization: Bearer <token>
-```
+- Toutes les routes hors `Auth` exigent une session authentifiée.
+- L'authentification passe par un **JWT** transmis de deux façons (l'un ou l'autre) :
+  - cookie `HttpOnly` `chat_token` (posé automatiquement au login) ;
+  - header `Authorization: Bearer <token>`.
+- Le token porte `{ userId, orgId }` et **expire après 24 h**. Un token sans `orgId`
+  (antérieur au multi-tenant) est rejeté (`401`).
+- **Multi-tenant** : chaque requête est implicitement scopée à l'organisation du token
+  (`orgId`). Aucune donnée ne traverse une organisation.
+- Les modifications utilisent **`PUT` / `PATCH`** (jamais `POST`), y compris le
+  changement de mot de passe.
+- Réponses d'erreur : `{ "error": "message" }`. Codes usuels : `400` (validation),
+  `401` (non authentifié), `403` (permission refusée), `404` (introuvable),
+  `409` (conflit), `500` (erreur serveur).
 
-Le token est obtenu via `POST /api/auth/login` et expire après **24 heures**.
+Les permissions listées (`team:UPDATE`, `member:CREATE`…) renvoient au modèle RBAC —
+voir [fonctionnalites.md](fonctionnalites.md#rbac--rôles--permissions) et
+[database/database.md](database/database.md#rbac--rôles--permissions).
 
 ---
 
-## Auth ✅
+## Auth — `/api/auth`
 
-| Méthode | Route                | Description                  | Status |
-| ------- | -------------------- | ---------------------------- | ------ |
-| POST    | `/api/auth/register` | Créer un compte              | ✅     |
-| POST    | `/api/auth/login`    | Connexion, retourne un token | ✅     |
-| POST    | `/api/auth/logout`   | Déconnexion                  | ✅     |
+Routes publiques (aucun token requis, sauf `logout`).
+
+| Méthode | Route       | Description                                   |
+| ------- | ----------- | --------------------------------------------- |
+| POST    | `/register` | Crée un compte **et son organisation**        |
+| POST    | `/login`    | Connexion, retourne un token + pose le cookie |
+| POST    | `/logout`   | Déconnexion (efface le cookie)                |
+| POST    | `/activate` | Un membre invité définit son mot de passe     |
 
 ### `POST /api/auth/register`
+
+Crée un utilisateur qui devient **`org_owner`** d'une nouvelle organisation. Le champ
+`organisation` est optionnel (défaut : « Organisation de `<prénom>` »).
 
 **Body :**
 ```json
@@ -30,677 +48,228 @@ Le token est obtenu via `POST /api/auth/login` et expire après **24 heures**.
   "lastname": "Martin",
   "email": "lucas@lime.app",
   "username": "lucas",
-  "password": "secret123"
+  "password": "secret123",
+  "organisation": "Milestone"
 }
 ```
 
-**Réponse `201` :**
-```json
-{
-  "id": 1,
-  "firstname": "Lucas",
-  "lastname": "Martin",
-  "email": "lucas@lime.app",
-  "username": "lucas"
-}
-```
-
-**Erreurs :**
-| Code | Description                 |
-| ---- | --------------------------- |
-| 400  | Champs manquants            |
-| 409  | Email déjà utilisé          |
+**`201`** → `{ id, firstname, lastname, email, username }`
+**Erreurs :** `400` champs manquants · `409` email déjà utilisé
 
 ### `POST /api/auth/login`
 
-**Body :**
-```json
-{
-  "email": "lucas@lime.app",
-  "password": "secret123"
-}
-```
+**Body :** `{ "email": "lucas@lime.app", "password": "secret123" }`
 
-**Réponse `200` :**
+**`200`** — pose le cookie `chat_token` et retourne :
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIs...",
-  "user": {
-    "id": 1,
-    "firstname": "Lucas",
-    "lastname": "Martin",
-    "email": "lucas@lime.app",
-    "username": "lucas"
-  }
+  "user": { "id": 1, "firstname": "Lucas", "lastname": "Martin", "email": "lucas@lime.app", "username": "lucas", "org_id": 1 }
 }
 ```
-
-**Erreurs :**
-| Code | Description                 |
-| ---- | --------------------------- |
-| 400  | Email ou mot de passe manquant |
-| 401  | Identifiants invalides      |
+**Erreurs :** `400` champs manquants · `401` identifiants invalides · `403` compte non activé (membre invité n'ayant pas encore suivi le lien d'activation)
 
 ### `POST /api/auth/logout`
 
-**Réponse `200` :**
+Nécessite un token (cookie ou Bearer). **`200`** → `{ "message": "Déconnexion réussie" }` · `401` token manquant/invalide.
+
+### `POST /api/auth/activate`
+
+Un membre invité définit son mot de passe via le token reçu par email (valable **7 jours**).
+
+**Body :** `{ "token": "<token d'activation>", "password": "secret123" }` (mot de passe ≥ 8 caractères)
+**`200`** → `{ "message": "Compte activé" }`
+**Erreurs :** `400` mot de passe trop court · `401` token invalide/expiré · `404` compte introuvable
+
+---
+
+## Utilisateurs — `/api/users`
+
+L'utilisateur n'agit que sur **son propre** compte (`/me`).
+
+| Méthode | Route          | Description                                       |
+| ------- | -------------- | ------------------------------------------------- |
+| PUT     | `/me`          | Met à jour son profil                             |
+| PUT     | `/me/password` | Change son mot de passe                           |
+
+### `PUT /api/users/me`
+
+**Body :** `{ "firstname", "lastname", "email", "username" }` (tous requis)
+**`200`** → profil mis à jour · **Erreurs :** `400` · `409` email ou username déjà utilisé
+
+### `PUT /api/users/me/password`
+
+**Body :** `{ "currentPassword": "...", "newPassword": "..." }` (nouveau ≥ 8 caractères)
+**`200`** → `{ "message": "Mot de passe mis à jour" }` · **Erreurs :** `400` · `401` mot de passe actuel invalide
+
+---
+
+## Organisation — `/api/org`
+
+Gestion de l'entreprise et de ses membres. Le tenant est celui du token.
+
+| Méthode | Route               | Permission     | Description                              |
+| ------- | ------------------- | -------------- | ---------------------------------------- |
+| GET     | `/`                 | authentifié    | Infos de l'organisation courante         |
+| PATCH   | `/`                 | `org:UPDATE`   | Met à jour les infos entreprise          |
+| GET     | `/members`          | authentifié    | Liste des membres (sélecteurs d'users)   |
+| POST    | `/members`          | `member:CREATE`| Invite un membre (email d'activation)    |
+| PATCH   | `/members/:userId`  | `member:UPDATE`| Change le rôle d'org d'un membre         |
+| DELETE  | `/members/:userId`  | `member:DELETE`| Retire un membre de l'organisation       |
+
+### `PATCH /api/org`
+
+Champs modifiables : `nom` (obligatoire, non effaçable), `raison_sociale`, `siren` (9 chiffres),
+`siret` (14 chiffres), `tva_intracommunautaire`, `email`, `telephone`, `adresse`, `code_postal`,
+`ville`, `pays`. Envoyer `null`/`""` efface un champ (sauf `nom`).
+**`200`** → org · **Erreurs :** `400` validation · `409` SIREN/email déjà pris par une autre org
+
+### `POST /api/org/members`
+
+Crée un membre `activated_at = NULL` et lui envoie un email d'invitation. Le membre définit son
+mot de passe via `POST /api/auth/activate`.
+
+**Body :** `{ "firstname", "lastname", "username", "email", "role"?: "org_admin" | "member" }`
+**`201`** → `{ id, firstname, lastname, email, username, role, emailSent }`
+(`emailSent: false` si l'email a échoué — le compte est créé quand même)
+**Erreurs :** `400` · `409` email/username déjà utilisé
+
+### `PATCH /api/org/members/:userId`
+
+**Body :** `{ "role": "org_admin" | "member" }` · **`200`** → `{ id, role }` · **`403`** le rôle de l'`org_owner` est immuable
+
+### `DELETE /api/org/members/:userId`
+
+**`204`** · **Erreurs :** `400` on ne peut pas se retirer soi-même · `403` l'`org_owner` est protégé · `409` le membre a des messages/documents (suppression bloquée)
+
+---
+
+## Équipes — `/api/teams`
+
+Équipes **hiérarchiques** (une équipe peut avoir une équipe parente). L'autorité cascade :
+un manager d'une équipe gère automatiquement ses sous-équipes.
+
+| Méthode | Route                     | Permission                    | Description                       |
+| ------- | ------------------------- | ----------------------------- | --------------------------------- |
+| GET     | `/`                       | authentifié                   | Ses équipes (ou toutes si manager d'org) |
+| POST    | `/`                       | `team:CREATE` (scope parent)  | Crée une équipe (ou sous-équipe)  |
+| GET     | `/:id`                    | membre / manager              | Détail + membres                  |
+| PATCH   | `/:id`                    | `team:UPDATE`                 | Renomme                           |
+| DELETE  | `/:id`                    | `team:DELETE`                 | Supprime                          |
+| GET     | `/:id/members`            | membre / manager              | Liste des membres                 |
+| POST    | `/:id/members`            | `team:UPDATE` (+ périmètre)   | Ajoute un membre                  |
+| PATCH   | `/:id/members/:userId`    | `team:UPDATE`                 | Change le rôle d'un membre        |
+| DELETE  | `/:id/members/:userId`    | `team:UPDATE` ou soi-même     | Retire un membre                  |
+
+- **`GET /`** : un manager d'org (`org_owner`/`org_admin`) voit toutes les équipes ; un membre
+  simple ne voit que celles dont il fait partie (ou qu'il gère par cascade).
+- **`POST /`** : avec `parent_team_id`, crée une sous-équipe — la permission est vérifiée **au scope
+  du parent** (un `team_owner`/`team_admin` du parent ou d'un ancêtre peut créer). Sans parent
+  (équipe racine), seul un manager d'org passe. `parent_team_id` doit être dans la même org.
+- **`POST /:id/members`** : body `{ "userId": 3, "role"?: "team_admin" | "team_member" }`. Hors
+  manager d'org, l'appelant ne peut recruter que des utilisateurs déjà sous son autorité
+  (périmètre du sous-arbre). Réponses : `201` · `400` pas dans l'org · `409` déjà membre.
+- **`PATCH /:id/members/:userId`** : body `{ "role": "team_owner" | "team_admin" | "team_member" }`.
+  Toucher à la **propriété** (promouvoir `team_owner` ou modifier le `team_owner` actuel) est
+  réservé au manager d'org et au propriétaire courant.
+- **`DELETE /:id/members/:userId`** : on peut toujours se retirer soi-même ; retirer autrui exige
+  `team:UPDATE`.
+
+---
+
+## Canaux — `/api/channels`
+
+Un canal a un **propriétaire** (`canal_owner`, son créateur) et des membres avec un rôle canal.
+L'accès dérive de liens explicites, de liens d'équipe (éventuellement étendus au sous-arbre) ou
+du statut « org-wide ».
+
+| Méthode | Route                      | Autorisation                  | Description                        |
+| ------- | -------------------------- | ----------------------------- | ---------------------------------- |
+| GET     | `/`                        | authentifié                   | Canaux visibles + `my_role`        |
+| POST    | `/`                        | selon `mode`                  | Crée un canal                      |
+| PATCH   | `/:id`                     | `canal_owner`                 | Renomme                            |
+| DELETE  | `/:id`                     | `canal_owner`                 | Supprime pour tous                 |
+| GET     | `/:id/members`             | membre                        | Membres + rôles                    |
+| GET     | `/:id/non-members?q=`      | owner / admin                 | Utilisateurs non membres (recherche) |
+| POST    | `/:id/members`             | owner / admin                 | Ajoute un membre                   |
+| PATCH   | `/:id/members/:userId`     | `canal_owner`                 | Change le rôle d'un membre         |
+| POST    | `/:id/transfer`            | `canal_owner`                 | Transfère la propriété             |
+| DELETE  | `/:id/members/:userId`     | owner / admin / soi-même      | Retire un membre / quitte          |
+| GET     | `/:id/messages`            | membre                        | Messages du canal                  |
+| POST    | `/:id/messages`            | membre (sauf `canal_reader`)  | Envoie un message                  |
+
+### `POST /api/channels`
+
+**Body :** `{ "name": "général", "mode"?: "...", "default_role"?: "...", "team_id"?: N, "user_ids"?: [N] }`
+
+`mode` (défaut `private`) détermine le peuplement initial et l'autorisation requise :
+
+| mode           | Peuplement                                   | Autorisation                                |
+| -------------- | -------------------------------------------- | ------------------------------------------- |
+| `private`      | le créateur seul                             | tout authentifié                            |
+| `org`          | toute l'organisation                         | `channel:CREATE` au scope org (manager d'org) |
+| `team`         | les membres directs d'une équipe             | gérer cette équipe (`channel:CREATE` cascade) |
+| `team_subtree` | l'équipe **et tout son sous-arbre**          | idem `team`                                 |
+| `members`      | des utilisateurs précis (`user_ids`)         | chaque cible sous l'autorité de l'appelant (`canManageUser`) |
+
+- `default_role` (rôle attribué aux membres ajoutés via le lien) : `canal_admin`, `canal_member`
+  (défaut) ou `canal_reader`.
+- `team`/`team_subtree` exigent `team_id` (même org).
+- `members` exige `user_ids` : liste d'entiers > 0, **dédupliquée** et **plafonnée à 500**.
+- **`201`** → `{ ...channel, my_role: "canal_owner" }`.
+
+### `POST /api/channels/:id/members`
+
+**Body :** `{ "userId": 2 }` · **`201`** `{ "added": true }` (ou `200 { "added": false }` si déjà membre)
+
+### `PATCH /api/channels/:id/members/:userId`
+
+**Body :** `{ "role": "canal_admin" | "canal_member" | "canal_reader" }` · réservé au `canal_owner`.
+`409` on ne change pas le rôle du propriétaire.
+
+### `POST /api/channels/:id/transfer`
+
+**Body :** `{ "userId": 2 }` (doit déjà être membre). Le `canal_owner` cède la propriété et
+redevient membre. **`200`** → `{ "message": "Propriété transférée" }`.
+
+### `DELETE /api/channels/:id/members/:userId`
+
+- **Se retirer soi-même** : si l'appelant est `canal_owner` et qu'il reste d'autres membres →
+  `409 { code: "OWNER_HAS_MEMBERS" }` (transférer ou supprimer d'abord). Propriétaire seul →
+  quitter **supprime** le canal.
+- **Retirer autrui** : owner retire n'importe qui ; `canal_admin` ne retire qu'un `canal_member`
+  (pas un autre admin ni le propriétaire).
+
+### `POST /api/channels/:id/messages`
+
+**Body :** `{ "content": "Bonjour" }` (1–4000 caractères). Un `canal_reader` est en **lecture seule**
+(`403`). **`201`** → message créé, **diffusé en temps réel** via WebSocket aux membres connectés du canal.
+
+---
+
+## Messages — temps réel (WebSocket)
+
+Endpoint : **`ws://<host>/ws`**. Authentification par le même JWT (cookie `chat_token` ou
+`Authorization: Bearer`). La connexion est refusée (`1008 Unauthorized`) sans token valide.
+
+Le serveur relaie chaque nouveau message **uniquement** aux clients connectés qui sont membres du
+canal concerné (et donc de la même organisation) :
+
 ```json
-{
-  "message": "Déconnexion réussie"
-}
+{ "type": "new_message", "data": { "id": 3, "channel_id": 1, "user_id": 1, "content": "...", "org_id": 1, "created_at": "..." } }
 ```
 
 ---
 
-## Users
+## Documentation interactive
 
-| Méthode | Route            | Description                                         |
-| ------- | ---------------- | --------------------------------------------------- |
-| GET     | `/api/users/:id` | Récupérer un utilisateur                            |
-| PUT     | `/api/users/:id` | Modifier son profil (firstname, lastname, username) |
-| DELETE  | `/api/users/:id` | Supprimer un compte                                 |
+- **`GET /api/docs`** — Swagger UI (OpenAPI 3.0), généré depuis `chat-backend/src/swagger.ts`.
+  Couvre l'ensemble des routes REST (`Auth`, `Users`, `Organisation`, `Teams`, `Channels`).
+  Le WebSocket temps réel (`/ws`) n'y figure pas — voir la section ci-dessus.
 
-### `GET /api/users/:id`
+## Hors périmètre API actuel
 
-**Réponse `200` :**
-```json
-{
-  "id": 1,
-  "firstname": "Lucas",
-  "lastname": "Martin",
-  "email": "lucas@lime.app",
-  "username": "lucas"
-}
-```
-
-### `PUT /api/users/:id`
-
-**Body :**
-```json
-{
-  "firstname": "Lucas",
-  "lastname": "Martin",
-  "username": "lucas_m"
-}
-```
-
-**Réponse `200` :**
-```json
-{
-  "id": 1,
-  "firstname": "Lucas",
-  "lastname": "Martin",
-  "email": "lucas@lime.app",
-  "username": "lucas_m"
-}
-```
-
-### `DELETE /api/users/:id`
-
-**Réponse `200` :**
-```json
-{
-  "message": "Utilisateur supprimé"
-}
-```
-
----
-
-## Teams
-
-| Méthode | Route                            | Description                      |
-| ------- | -------------------------------- | -------------------------------- |
-| GET     | `/api/teams`                     | Lister les équipes               |
-| POST    | `/api/teams`                     | Créer une équipe                 |
-| GET     | `/api/teams/:id`                 | Détail d'une équipe              |
-| PUT     | `/api/teams/:id`                 | Modifier une équipe              |
-| DELETE  | `/api/teams/:id`                 | Supprimer une équipe             |
-| GET     | `/api/teams/:id/members`         | Lister les membres               |
-| POST    | `/api/teams/:id/members`         | Ajouter un membre (`{ idUser }`) |
-| DELETE  | `/api/teams/:id/members/:userId` | Retirer un membre                |
-
-### `GET /api/teams`
-
-**Réponse `200` :**
-```json
-[
-  { "id": 1, "name": "Développeurs" },
-  { "id": 2, "name": "Design" }
-]
-```
-
-### `POST /api/teams`
-
-**Body :**
-```json
-{
-  "name": "Marketing"
-}
-```
-
-**Réponse `201` :**
-```json
-{
-  "id": 3,
-  "name": "Marketing"
-}
-```
-
-### `GET /api/teams/:id`
-
-**Réponse `200` :**
-```json
-{
-  "id": 1,
-  "name": "Développeurs"
-}
-```
-
-### `PUT /api/teams/:id`
-
-**Body :**
-```json
-{
-  "name": "Développeurs Backend"
-}
-```
-
-**Réponse `200` :**
-```json
-{
-  "id": 1,
-  "name": "Développeurs Backend"
-}
-```
-
-### `DELETE /api/teams/:id`
-
-**Réponse `200` :**
-```json
-{
-  "message": "Équipe supprimée"
-}
-```
-
-### `GET /api/teams/:id/members`
-
-**Réponse `200` :**
-```json
-[
-  { "id": 1, "firstname": "Lucas", "lastname": "Martin", "username": "lucas" },
-  { "id": 2, "firstname": "Julie", "lastname": "Dupont", "username": "julie" }
-]
-```
-
-### `POST /api/teams/:id/members`
-
-**Body :**
-```json
-{
-  "idUser": 3
-}
-```
-
-**Réponse `201` :**
-```json
-{
-  "message": "Membre ajouté"
-}
-```
-
-### `DELETE /api/teams/:id/members/:userId`
-
-**Réponse `200` :**
-```json
-{
-  "message": "Membre retiré"
-}
-```
-
----
-
-## Canaux
-
-| Méthode | Route                             | Description                     |
-| ------- | --------------------------------- | ------------------------------- |
-| GET     | `/api/teams/:teamId/canaux`       | Lister les canaux d'une équipe  |
-| POST    | `/api/teams/:teamId/canaux`       | Créer un canal                  |
-| GET     | `/api/canaux/:id`                 | Détail d'un canal               |
-| PUT     | `/api/canaux/:id`                 | Modifier un canal               |
-| DELETE  | `/api/canaux/:id`                 | Supprimer un canal              |
-| POST    | `/api/canaux/:id/members`         | Ajouter un utilisateur au canal |
-| DELETE  | `/api/canaux/:id/members/:userId` | Retirer un utilisateur du canal |
-
-### `GET /api/teams/:teamId/canaux`
-
-**Réponse `200` :**
-```json
-[
-  { "id": 1, "name": "général" },
-  { "id": 2, "name": "bugs" }
-]
-```
-
-### `POST /api/teams/:teamId/canaux`
-
-**Body :**
-```json
-{
-  "name": "déploiement"
-}
-```
-
-**Réponse `201` :**
-```json
-{
-  "id": 3,
-  "name": "déploiement"
-}
-```
-
-### `GET /api/canaux/:id`
-
-**Réponse `200` :**
-```json
-{
-  "id": 1,
-  "name": "général"
-}
-```
-
-### `PUT /api/canaux/:id`
-
-**Body :**
-```json
-{
-  "name": "général-v2"
-}
-```
-
-**Réponse `200` :**
-```json
-{
-  "id": 1,
-  "name": "général-v2"
-}
-```
-
-### `DELETE /api/canaux/:id`
-
-**Réponse `200` :**
-```json
-{
-  "message": "Canal supprimé"
-}
-```
-
-### `POST /api/canaux/:id/members`
-
-**Body :**
-```json
-{
-  "idUser": 2
-}
-```
-
-**Réponse `201` :**
-```json
-{
-  "message": "Utilisateur ajouté au canal"
-}
-```
-
-### `DELETE /api/canaux/:id/members/:userId`
-
-**Réponse `200` :**
-```json
-{
-  "message": "Utilisateur retiré du canal"
-}
-```
-
----
-
-## Messages
-
-| Méthode | Route                      | Description                         |
-| ------- | -------------------------- | ----------------------------------- |
-| GET     | `/api/canaux/:id/messages` | Lister les messages d'un canal      |
-| POST    | `/api/canaux/:id/messages` | Envoyer un message (`{ content }`)  |
-| PUT     | `/api/messages/:id`        | Modifier un message (`{ content }`) |
-| DELETE  | `/api/messages/:id`        | Supprimer un message                |
-| PUT     | `/api/messages/:id/pin`    | Épingler / désépingler un message   |
-
-### `GET /api/canaux/:id/messages`
-
-**Réponse `200` :**
-```json
-[
-  {
-    "id": 1,
-    "idCanaux": 1,
-    "idUser": 1,
-    "content": "Bonjour à tous !",
-    "isUpdated": false,
-    "isPinned": false,
-    "createdAt": "2026-04-08T10:30:00Z"
-  },
-  {
-    "id": 2,
-    "idCanaux": 1,
-    "idUser": 2,
-    "content": "Salut Lucas !",
-    "isUpdated": false,
-    "isPinned": false,
-    "createdAt": "2026-04-08T10:31:00Z"
-  }
-]
-```
-
-### `POST /api/canaux/:id/messages`
-
-**Body :**
-```json
-{
-  "content": "Nouveau message ici"
-}
-```
-
-**Réponse `201` :**
-```json
-{
-  "id": 3,
-  "idCanaux": 1,
-  "idUser": 1,
-  "content": "Nouveau message ici",
-  "isUpdated": false,
-  "isPinned": false,
-  "createdAt": "2026-04-08T11:00:00Z"
-}
-```
-
-### `PUT /api/messages/:id`
-
-**Body :**
-```json
-{
-  "content": "Message modifié"
-}
-```
-
-**Réponse `200` :**
-```json
-{
-  "id": 3,
-  "idCanaux": 1,
-  "idUser": 1,
-  "content": "Message modifié",
-  "isUpdated": true,
-  "isPinned": false,
-  "createdAt": "2026-04-08T11:00:00Z"
-}
-```
-
-### `DELETE /api/messages/:id`
-
-**Réponse `200` :**
-```json
-{
-  "message": "Message supprimé"
-}
-```
-
-### `PUT /api/messages/:id/pin`
-
-**Réponse `200` :**
-```json
-{
-  "id": 3,
-  "idCanaux": 1,
-  "idUser": 1,
-  "content": "Message modifié",
-  "isUpdated": true,
-  "isPinned": true,
-  "createdAt": "2026-04-08T11:00:00Z"
-}
-```
-
-### Réactions
-
-| Méthode | Route                         | Description                           |
-| ------- | ----------------------------- | ------------------------------------- |
-| GET     | `/api/messages/:id/reactions` | Lister les réactions d'un message     |
-| POST    | `/api/messages/:id/reactions` | Ajouter une réaction (`{ reaction }`) |
-| DELETE  | `/api/messages/:id/reactions` | Retirer sa réaction                   |
-
-### `GET /api/messages/:id/reactions`
-
-**Réponse `200` :**
-```json
-[
-  { "idUser": 1, "reaction": "👍" },
-  { "idUser": 2, "reaction": "🎉" }
-]
-```
-
-### `POST /api/messages/:id/reactions`
-
-**Body :**
-```json
-{
-  "reaction": "👍"
-}
-```
-
-**Réponse `201` :**
-```json
-{
-  "idMessage": 1,
-  "idUser": 1,
-  "reaction": "👍"
-}
-```
-
-### `DELETE /api/messages/:id/reactions`
-
-**Réponse `200` :**
-```json
-{
-  "message": "Réaction retirée"
-}
-```
-
----
-
-## Documents
-
-| Méthode | Route                         | Description                         |
-| ------- | ----------------------------- | ----------------------------------- |
-| POST    | `/api/canaux/:id/documents`   | Uploader un fichier dans un canal   |
-| GET     | `/api/messages/:id/documents` | Récupérer les fichiers d'un message |
-| DELETE  | `/api/documents/:id`          | Supprimer un fichier                |
-
-### `POST /api/canaux/:id/documents`
-
-**Body :** `multipart/form-data` avec le fichier + `idMessage`
-
-**Réponse `201` :**
-```json
-{
-  "id": 1,
-  "idCanaux": 1,
-  "idUser": 1,
-  "idMessage": 3,
-  "type": "image/png",
-  "content": "screenshot.png",
-  "createdAt": "2026-04-08T11:05:00Z"
-}
-```
-
-### `GET /api/messages/:id/documents`
-
-**Réponse `200` :**
-```json
-[
-  {
-    "id": 1,
-    "idCanaux": 1,
-    "idUser": 1,
-    "idMessage": 3,
-    "type": "image/png",
-    "content": "screenshot.png",
-    "createdAt": "2026-04-08T11:05:00Z"
-  }
-]
-```
-
-### `DELETE /api/documents/:id`
-
-**Réponse `200` :**
-```json
-{
-  "message": "Document supprimé"
-}
-```
-
----
-
-## Rôles & Permissions *(admin)*
-
-| Méthode | Route                                | Description                        |
-| ------- | ------------------------------------ | ---------------------------------- |
-| GET     | `/api/roles`                         | Lister les rôles                   |
-| POST    | `/api/roles`                         | Créer un rôle                      |
-| PUT     | `/api/roles/:id`                     | Modifier un rôle                   |
-| DELETE  | `/api/roles/:id`                     | Supprimer un rôle                  |
-| GET     | `/api/permissions`                   | Lister les permissions disponibles |
-| POST    | `/api/roles/:id/permissions`         | Assigner une permission à un rôle  |
-| DELETE  | `/api/roles/:id/permissions/:permId` | Retirer une permission             |
-| POST    | `/api/users/:id/roles`               | Assigner un rôle à un utilisateur  |
-| DELETE  | `/api/users/:id/roles/:roleId`       | Retirer un rôle                    |
-
-### `GET /api/roles`
-
-**Réponse `200` :**
-```json
-[
-  { "id": 1, "name": "Admin", "isAdmin": true, "isSuperAdmin": false },
-  { "id": 2, "name": "Membre", "isAdmin": false, "isSuperAdmin": false }
-]
-```
-
-### `POST /api/roles`
-
-**Body :**
-```json
-{
-  "name": "Modérateur",
-  "isAdmin": false,
-  "isSuperAdmin": false
-}
-```
-
-**Réponse `201` :**
-```json
-{
-  "id": 3,
-  "name": "Modérateur",
-  "isAdmin": false,
-  "isSuperAdmin": false
-}
-```
-
-### `PUT /api/roles/:id`
-
-**Body :**
-```json
-{
-  "name": "Super Modérateur",
-  "isAdmin": true
-}
-```
-
-**Réponse `200` :**
-```json
-{
-  "id": 3,
-  "name": "Super Modérateur",
-  "isAdmin": true,
-  "isSuperAdmin": false
-}
-```
-
-### `DELETE /api/roles/:id`
-
-**Réponse `200` :**
-```json
-{
-  "message": "Rôle supprimé"
-}
-```
-
-### `GET /api/permissions`
-
-**Réponse `200` :**
-```json
-[
-  { "id": 1, "category": "message", "action": "delete" },
-  { "id": 2, "category": "canaux", "action": "create" },
-  { "id": 3, "category": "team", "action": "modify" }
-]
-```
-
-### `POST /api/roles/:id/permissions`
-
-**Body :**
-```json
-{
-  "idPermission": 2
-}
-```
-
-**Réponse `201` :**
-```json
-{
-  "message": "Permission assignée"
-}
-```
-
-### `DELETE /api/roles/:id/permissions/:permId`
-
-**Réponse `200` :**
-```json
-{
-  "message": "Permission retirée"
-}
-```
-
-### `POST /api/users/:id/roles`
-
-**Body :**
-```json
-{
-  "idRole": 1,
-  "idTeam": 1,
-  "idCanaux": 1
-}
-```
-
-**Réponse `201` :**
-```json
-{
-  "idUser": 1,
-  "idRole": 1,
-  "idTeam": 1,
-  "idCanaux": 1
-}
-```
-
-### `DELETE /api/users/:id/roles/:roleId`
-
-**Réponse `200` :**
-```json
-{
-  "message": "Rôle retiré"
-}
-```
+Le schéma de base prévoit **documents** (pièces jointes) et **réactions** emoji (tables
+`documents`, `message_reaction_users`), mais **aucune route HTTP ne les expose encore**. De même,
+la gestion des **rôles/permissions** est pilotée par migrations (seed RBAC), sans endpoint
+d'administration dédié.
