@@ -183,6 +183,20 @@ cors({ origin: CLIENT_ORIGIN, credentials: true })
 | 5 | **Rate limiting** | Pas de limitation sur `/login` ni `/activate` | Ajouter un throttling (brute-force / énumération) |
 | 6 | **Validation des entrées** | Bon typage runtime sur l'auth et les champs org (longueurs alignées migration 016) ; à généraliser | Schéma de validation systématique sur tous les bodies |
 
+# Workflow
+
+Des mesures de sécurités ont aussi été prises au niveau des workflow du projet lime
+
+```yml
+...
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 #v7.0.0
+...
+```
+
+Toutes les dependances d'actions sont importés via leurs SHA de commits au lieu d'utiliser le tag
+Cette methode permet d'eviter les attaques de type supply chain dans le cas ou le tag serait rediriger vers une source malveillant.
+
 ## Voir aussi
 
 - [architecture.md](architecture.md) — vue d'ensemble client/serveur, temps réel
