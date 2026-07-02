@@ -33,6 +33,17 @@ Exemple :  `feat: Ajout de la page de connexion`
 Les préfixes de commit peuvent êtres utiliser a la place de feat lorsque la modification correspond uniquement un aspect
 ex `typo/homepage` pour une branches contenant de multiples modification de la page d'accueil
 
+## Conventions de nommage du code
+
+Au-delà des conventions Git, le code suit des règles de nommage et de style homogènes, imposées automatiquement par **Biome** (lint + format) sur le backend comme le frontend :
+
+- **camelCase** pour les variables, fonctions et propriétés (TypeScript/JavaScript) ; **PascalCase** pour les composants React et les types.
+- **Fichiers backend nommés par domaine métier** (`auth.ts`, `organisations.ts`, `teams.ts`, `channels.ts`, `users.ts`).
+- **Pas de `any`** : la règle `noExplicitAny` est en `error` dans [`biome.json`](../chat-backend/biome.json), le typage explicite est obligatoire.
+- **Guillemets doubles**, indentation à 2 espaces, et **imports organisés automatiquement** (`organizeImports`).
+
+Le formatage n'est donc pas laissé à l'appréciation de chacun : `bun run check` applique les règles localement et le workflow `lint.yml` les vérifie sur chaque pull request.
+
 ## Architecture du pipeline CI/CD
 
 ```mermaid
@@ -92,6 +103,17 @@ CodeRabbit est configuré via [`.coderabbit.yml`](../.coderabbit.yml) :
 - **Outils branchés** : Biome, détection de secrets (Gitleaks, TruffleHog), analyse de sécurité (Semgrep, Trivy, Checkov), lint des workflows (actionlint) et Dockerfiles (Hadolint), Markdown (markdownlint), orthographe/grammaire (LanguageTool), SQL (sqlfluff), YAML (yamllint), etc.
 - La documentation (`docs/**`) et `node_modules` sont **exclus** des revues (`path_filters`).
 
+## Stratégie de tests
+
+Le projet distingue deux niveaux de tests, tous deux exécutés automatiquement à chaque pull request (voir [[#Architecture de lancement des tests]]) :
+
+- **Tests unitaires** (`__test__/units/`) : ils valident des fonctions isolées, sans dépendance externe ni base de données — helpers de chaîne (`cleanString`), génération de token d'activation, parsing de paramètres (`parseIdParam`), validation des champs d'organisation, middleware d'authentification.
+- **Tests End2End / d'intégration** (`__test__/e2e/`) : ils valident les parcours complets à travers l'API réelle et une **base de données de test dédiée** (`chat_db_test`), isolée de la base de développement. Chaque domaine a sa suite : authentification, organisations, équipes, canaux, et sécurité (isolation multi-tenant, anti-escalade de privilèges).
+
+Les données de test sont réinitialisées avant chaque exécution à partir de `fixtures.json` et du script `setup/init-db.ts`, ce qui garantit des tests reproductibles.
+
+**Ce qu'il aurait fallu compléter** — conformément à l'esprit de l'exercice, nous identifions deux limites : nous ne mesurons pas encore d'**objectif de couverture chiffré** (il faudrait instrumenter la couverture et fixer un seuil minimal vérifié en CI), et le **frontend ne dispose pas de tests automatisés** (des tests de composants et un test end-to-end navigateur seraient à ajouter).
+
 ## Environnement de test e2e
 
 Lors de la création d'une pull request une pipeline ci lance parallèlement les test via le workflow `test.yml`. Ce workflow initialise une environnement de test avec des valeurs prédéfinis afin de vérifier l'intégration du projet sur un environnement.
@@ -99,6 +121,22 @@ Lors de la création d'une pull request une pipeline ci lance parallèlement les
 ##### Son fonctionnement
 
 La pipeline, installe toutes les actions nécessaire a son fonctionnement. Une fois les actions installés, la pipeline copie le fichier `env.test`, une fois le fichier `env.test` copier, la pipeline va lancé un docker compose de la base de donnée postgres et le redis. Ensuite, la pipeline va vérifier l'état de lancement des deux services, lorsqu'ils sont confirmés comme lancé, la pipeline va lancer bun et exécuté les test e2e[^1].
+
+## Architecture modulaire
+
+Le code est organisé selon le principe « **un module = une responsabilité** ».
+
+**Backend** (`chat-backend/src/`) — découpage **par domaine métier**, chaque fichier exposant les routes et la logique d'un domaine :
+
+- `auth.ts` — authentification (connexion, activation de compte, JWT) ;
+- `organisations.ts` — gestion des organisations (frontière multi-tenant stricte) ;
+- `teams.ts` — hiérarchie d'équipes et cascade d'autorité ;
+- `channels.ts` — canaux et messages ;
+- `users.ts` — utilisateurs et rôles.
+
+Les préoccupations transverses sont isolées à part : `database.ts` (accès et requêtes), `middleware.ts` (authentification des requêtes), `redis.ts` (cache / sessions), `email.ts` (envoi de mails), `config.ts` (configuration), `swagger.ts` (documentation OpenAPI) et `index.ts` (point d'entrée et montage des routes).
+
+**Frontend** (`chat-client/`) — architecture Next.js App Router : `app/` pour les routes et pages, `components/` pour les composants UI réutilisables, `lib/` pour les utilitaires et services (appels API) et `types/` pour les types partagés.
 
 ## Structure du projet
 
@@ -157,6 +195,15 @@ La pipeline, installe toutes les actions nécessaire a son fonctionnement. Une f
 ├── README.md # Documentation principale  
 └── run.ts # Point d'entrée / script d'exécution  
 ```
+
+## Documentation technique
+
+La documentation technique minimale est présente dans le dépôt et maintenue à jour :
+
+- **Installation et lancement** : [README racine](../README.md) et [README du client](../chat-client/README.md).
+- **Endpoints de l'API** : documentés dans [`docs/api-routes.md`](api-routes.md) et exposés de façon interactive via **Swagger** à l'URL `/api/docs` (générée depuis `src/swagger.ts`).
+- **Schéma de la base de données** : [`docs/database/database.md`](database/database.md), accompagné du schéma exportable (`database-schema.drawio`, `schema-db.pdf`).
+- **Documentation complémentaire** : [architecture](architecture.md), [stack technique](stack.md), [fonctionnalités](fonctionnalites.md) et [déploiement](deploiement.md).
 
 ## Possibilité d'évolution
 
