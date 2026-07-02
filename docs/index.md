@@ -9,6 +9,7 @@
 - [architecture.md](architecture.md) — Architecture du projet (client/serveur, DB, temps réel, Mermaid)
 - [stack.md](stack.md) — Stack technique détaillée (TypeScript, Frontend, Backend, SGBD)
 - [guide-bonne-pratiques.md](guide-bonne-pratiques.md) — Gitflow, CI/CD, structures du projet
+- [securite.md](securite.md) — Sécurité (auth JWT, RBAC, cloisonnement multi-tenant, CORS, points d'attention)
 - [deploiement.md](deploiement.md) — Déploiement en production (Render : front/back/Redis, Neon : PostgreSQL, variables d'env)
 - [database/database.md](database/database.md) — Documentation du schéma DB (tables, RBAC, commandes)
 - [database/database-schema.drawio](database/database-schema.drawio) — Schéma DB (draw.io)
