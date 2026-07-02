@@ -1,6 +1,6 @@
 "use client";
 
-import EmojiPicker, { EmojiStyle } from "emoji-picker-react";
+import EmojiPicker, { EmojiStyle, Theme } from "emoji-picker-react";
 import {
   DoorOpen,
   Hash,
@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChannelMembersDialog } from "@/components/channel-members-dialog";
 import { OwnerLeaveDialog } from "@/components/owner-leave-dialog";
@@ -61,6 +62,12 @@ export default function ChatPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [membersOpen, setMembersOpen] = useState(false);
   const [ownerLeaveOpen, setOwnerLeaveOpen] = useState(false);
+  const { theme, systemTheme } = useTheme();
+  const resolvedAppTheme = theme === "system" ? systemTheme : theme;
+  const emojiPickerTheme =
+    resolvedAppTheme === "dark" || resolvedAppTheme === "lime"
+      ? Theme.DARK
+      : Theme.LIGHT;
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
@@ -545,6 +552,7 @@ export default function ChatPage() {
               {showEmojiPicker && (
                 <div className="absolute bottom-full mb-2 right-0 z-50">
                   <EmojiPicker
+                    theme={emojiPickerTheme}
                     emojiStyle={EmojiStyle.NATIVE}
                     lazyLoadEmojis={true}
                     onEmojiClick={(emojiData) => {
