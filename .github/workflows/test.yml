@@ -6,6 +6,7 @@ on:
 
 jobs:
   e2e_tests:
+    if: ${{ !startsWith(github.head_ref, 'docs/') }}
     name: Test — End2End (Backend)
     runs-on: ubuntu-latest
 
@@ -57,6 +58,7 @@ jobs:
         working-directory: .
 
   unit_tests:
+    if: ${{ !startsWith(github.head_ref, 'docs/') }}
     name: Test — Unitaires (Backend)
     runs-on: ubuntu-latest
 
