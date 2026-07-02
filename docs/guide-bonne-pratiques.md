@@ -60,23 +60,24 @@ flowchart LR
 Les commits sont fait sur des branches correctement nommées ([[#Stratégies de préfixes et Gitflow]])
 Une fois les branches complétés, une pull request est ouverte, les workflow de test e2e, lint, review agent se lancent automatiquement. Si le tests sont validés, Un de nous deux review le code, si il est validé il est merge dans la main.
 
+Les workflows de test et de lint sont automatiquement ignorés sur les branches de documentation (`docs/*`), qui ne modifient pas le code applicatif.
+
 ### Architecture de lancement des tests
 
-```mermaid
+Les tests sont répartis en deux jobs indépendants dans le workflow `test.yml` : les **tests unitaires** (`bun test units`) et les **tests End2End** (orchestrés par `__test__/run.ts`). Les deux jobs sont ignorés sur les branches `docs/*`.
 
+```mermaid
 flowchart LR
-    A[feat/fonctionnalité] -->|merge| B{lint & build dev}
-    B -->  C{Test}
-    C --> D[Test End2End]
-    C --> E[Test Unitaires]
-    C --> F[Test d'Integration]
-    D -->|Installation des dependances workflow| G[Chargement du .env.test]
-    G -->H[Lancement de docker compose]
-    H -->I[Attente de la bdd x5]
-    I -->J{Base de donnée ok ?}
-    J -->|NON|I
-    J -->|Oui|K[Initialisation des valeur de tests]
-    K -->L[Lancement de bun & les tests]
+    A[Pull request vers main] --> U[Job tests unitaires]
+    A --> E[Job tests End2End]
+    U -->|bun install| U1[bun test units]
+    E -->|Chargement du .env.test| E1[docker compose : postgres + redis]
+    E1 --> E2[Attente pg_isready]
+    E2 --> E3[Création de la BDD chat_db_test]
+    E3 --> E4[bun run test → run.ts]
+    E4 --> E5[Initialisation de la BDD de test]
+    E5 --> E6[Lancement de l'API + attente de /api/docs x5]
+    E6 --> E7[Exécution des tests E2E]
 ```
 
 ### Code review et acceptation de merge
@@ -109,8 +110,12 @@ La pipeline, installe toutes les actions nécessaire a son fonctionnement. Une f
 │ │ └──  lint.yml # Pipeline CI de linting 
 | 
 ├── chat-backend/  
-│ ├── __test__/ # dossiers contenant les tests backend
-│ │ └── api.test.ts # Tests d'intégration/API  
+│ ├── __test__/ # Tests backend (orchestrés par run.ts)
+│ │ ├── e2e/ # Tests de bout en bout par domaine (auth, org, teams, channels, sécurité)
+│ │ ├── units/ # Tests unitaires (helpers, validation, middleware d'authentification)
+│ │ ├── setup/ # Initialisation de la BDD de test (init-db.ts)
+│ │ ├── fixtures.json # Jeu de données de test
+│ │ └── run.ts # Orchestrateur : prépare la BDD, lance l'API, exécute les tests E2E
 │ ├── migrations/ # Migrations de base de données  
 │ ├── src/ # Code source principal du backend  
 │ ├── .env.example # Variables d'environnement d'exemple  
@@ -118,6 +123,7 @@ La pipeline, installe toutes les actions nécessaire a son fonctionnement. Une f
 │ ├── .gitignore  
 │ ├── biome.json # Configuration Biome (lint + format)  
 │ ├── bun.lock # Verrouillage des dépendances Bun  
+│ ├── Dockerfile # Image Docker du backend  
 │ ├── package.json # Dépendances et scripts backend  
 │ ├── seed.ts # Script d'initialisation des données  
 │ └── tsconfig.json
@@ -130,10 +136,16 @@ La pipeline, installe toutes les actions nécessaire a son fonctionnement. Une f
 │ ├── types/  
 │ ├── .env.example # Variables d'environnement d'exemple  
 │ ├── .gitignore  
+│ ├── AGENTS.md # Instructions pour les agents IA  
 │ ├── biome.json # Configuration Biome  
 │ ├── bun.lock  
+│ ├── components.json # Configuration des composants (shadcn/ui)  
+│ ├── Dockerfile # Image Docker du frontend  
+│ ├── next.config.ts # Configuration Next.js  
 │ ├── package.json # Dépendances et scripts frontend  
+│ ├── postcss.config.mjs # Configuration PostCSS / Tailwind  
 │ ├── proxy.ts # Configuration du proxy/reverse proxy  
+│ ├── tsconfig.json  
 │ └── README.md # Documentation du client   
 ├── docs/ # Documentation du projet  
 ├── .coderabbit.yml # Configuration CodeRabbit  
