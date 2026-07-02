@@ -85,7 +85,7 @@ const FIELD_MAX: Record<OrgUpdatableField, number> = {
 };
 
 /** Valide le body du PATCH ; renvoie les champs nettoyés ou un message d'erreur. */
-function validateOrgFields(
+export function validateOrgFields(
   body: Record<string, unknown>,
 ):
   | { fields: Partial<Record<OrgUpdatableField, string | null>> }

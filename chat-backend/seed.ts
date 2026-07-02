@@ -4,11 +4,47 @@ import pool from "./src/database.js";
 
 dotenv.config({ path: "../.env" });
 
-async function seed() {
+export interface SeedOptions {
+  /**
+   * Vide les données « tenant » (orgs, users, teams, canaux, messages, rôles
+   * attribués) avant de semer. Les tables de référence RBAC (roles, permissions,
+   * role_permissions) posées par les migrations sont préservées. Utilisé par les
+   * tests pour repartir d'un état déterministe.
+   */
+  reset?: boolean;
+}
+
+/** Ids et identifiants renvoyés par le seed (consommés par les fixtures de test). */
+export interface SeedResult {
+  password: string;
+  adminPassword: string;
+  org: { id: number };
+  users: Record<string, { id: number; email: string }>;
+  teams: { root: number; dev: number };
+  channels: { general: number; random: number; dev: number };
+  beta: {
+    org: { id: number };
+    users: Record<string, { id: number; email: string }>;
+    teams: { root: number };
+    channels: { private: number };
+  };
+}
+
+export async function seed(options: SeedOptions = {}): Promise<SeedResult> {
+  const { reset = false } = options;
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
+
+    if (reset) {
+      // On NE vide PAS roles / permissions / role_permissions : ce socle RBAC est
+      // posé par les migrations et sert de source de vérité.
+      await client.query(
+        "TRUNCATE TABLE organisations, users, teams, team_users, channels, channel_team_users, messages, documents, message_reaction_users, user_roles RESTART IDENTITY CASCADE",
+      );
+      console.log("✓ Données tenant réinitialisées (reset)");
+    }
 
     // --- Organisation (tenant) ---
     const orgResult = await client.query(
@@ -59,6 +95,21 @@ async function seed() {
         `✓ Utilisateur créé : ${result.rows[0].username} (${u.email})`,
       );
     }
+
+    // Membre invité jamais activé (activated_at = NULL) : login refusé tant qu'il
+    // n'a pas défini son mot de passe via l'email d'invitation. Sert aux tests du
+    // parcours d'activation et permet de tester ce cas en local.
+    const pendingHash = await bcrypt.hash("password123", 10);
+    userIds.pending = (
+      await client.query(
+        `INSERT INTO users (firstname, lastname, email, username, password, org_id, activated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NULL)
+         ON CONFLICT (email) DO UPDATE SET activated_at = NULL
+         RETURNING id`,
+        ["Peggy", "Pending", "pending@lime.app", "pending", pendingHash, orgId],
+      )
+    ).rows[0].id;
+    console.log("✓ Utilisateur non activé créé : pending (pending@lime.app)");
 
     // --- Roles ---
     const roles = [
@@ -274,20 +325,111 @@ async function seed() {
        ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
       [userIds.lucas, roleIds.member, orgId],
     );
+    // Peggy (non activée) : membre simple de l'org.
+    await client.query(
+      `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
+      [userIds.pending, roleIds.member, orgId],
+    );
     console.log("✓ Rôles org attribués");
+
+    // --- 2ᵉ organisation « Beta » (isolation multi-tenant) ---
+    // Un tenant totalement distinct : aucun membre de Lime ne doit accéder à ses
+    // équipes, canaux ou membres. Utile aussi pour tester le cloisonnement en local.
+    const betaOrgId = (
+      await client.query(
+        `INSERT INTO organisations (nom) VALUES ($1) RETURNING id`,
+        ["Organisation Beta"],
+      )
+    ).rows[0].id as number;
+    const malloryHash = await bcrypt.hash("password123", 10);
+    const malloryId = (
+      await client.query(
+        `INSERT INTO users (firstname, lastname, email, username, password, org_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+         RETURNING id`,
+        [
+          "Mallory",
+          "Owner",
+          "mallory@beta.test",
+          "mallory",
+          malloryHash,
+          betaOrgId,
+        ],
+      )
+    ).rows[0].id as number;
+    await client.query(
+      `INSERT INTO user_roles (user_id, role_id, org_id) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
+      [malloryId, roleIds.org_owner, betaOrgId],
+    );
+    const betaTeamId = (
+      await client.query(
+        `INSERT INTO teams (name, org_id) VALUES ($1, $2) RETURNING id`,
+        ["Beta Team", betaOrgId],
+      )
+    ).rows[0].id as number;
+    const betaChanId = (
+      await client.query(
+        `INSERT INTO channels (name, org_id) VALUES ($1, $2) RETURNING id`,
+        ["beta-private", betaOrgId],
+      )
+    ).rows[0].id as number;
+    await client.query(
+      `INSERT INTO channel_team_users (channel_id, user_id, org_id) VALUES ($1, $2, $3)
+       ON CONFLICT DO NOTHING`,
+      [betaChanId, malloryId, betaOrgId],
+    );
+    await client.query(
+      `INSERT INTO user_roles (user_id, role_id, channel_id) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, role_id, COALESCE(team_id, 0), COALESCE(channel_id, 0), COALESCE(org_id, 0)) DO NOTHING`,
+      [malloryId, roleIds.canal_owner, betaChanId],
+    );
+    console.log("✓ Organisation Beta créée (isolation multi-tenant)");
 
     await client.query("COMMIT");
     console.log("\n✓ Seed terminé");
+
+    return {
+      password: "password123",
+      adminPassword: "admin123",
+      org: { id: orgId },
+      users: {
+        admin: { id: userIds.admin, email: "admin@lime.app" },
+        julie: { id: userIds.julie, email: "julie@lime.app" },
+        lucas: { id: userIds.lucas, email: "lucas@lime.app" },
+        pending: { id: userIds.pending, email: "pending@lime.app" },
+      },
+      teams: { root: teamId, dev: devTeamId },
+      channels: {
+        general: channelIds.général,
+        random: channelIds.random,
+        dev: channelIds.dev,
+      },
+      beta: {
+        org: { id: betaOrgId },
+        users: { mallory: { id: malloryId, email: "mallory@beta.test" } },
+        teams: { root: betaTeamId },
+        channels: { private: betaChanId },
+      },
+    };
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
   } finally {
     client.release();
-    await pool.end();
   }
 }
 
-seed().catch((err) => {
-  console.error("Seed failed:", err);
-  process.exit(1);
-});
+// Exécution directe (`bun run seed`) : seed de démo (sans reset).
+if ((import.meta as { main?: boolean }).main) {
+  seed()
+    .catch((err) => {
+      console.error("Seed failed:", err);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await pool.end();
+    });
+}
